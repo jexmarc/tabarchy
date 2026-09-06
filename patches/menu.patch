@@ -37,29 +37,37 @@
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -108,8 +131,8 @@
+@@ -108,11 +131,22 @@
    property int dividerHeight: Style.space(17)
    property bool searchDivider: false
    property int layoutSerial: 0
 -  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
--  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
 +  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeBang && root.activeBang.kind === "packages") ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
-+  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider, selectedIndex, cursorActive)
+   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
++  readonly property bool pkgPane: root.activeBang && root.activeBang.kind === "packages"
++  readonly property bool pkgDetailVisible: root.pkgPane && displayModel.count > 0
++  property int pkgDetailHeight: Style.space(72)
++  readonly property string selectedPkgDetail: {
++    var _watch = root.layoutSerial
++    if (!root.pkgDetailVisible || !root.cursorActive) return ""
++    if (root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return ""
++    var row = displayModel.get(root.selectedIndex)
++    if (!row || row.kind !== "bang-pkg") return ""
++    return row.detail || ""
++  }
    property int cardHeight: root.dmenuActive
      ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
-     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
-@@ -144,7 +167,305 @@
+-    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
++    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + (root.pkgDetailVisible ? contentSpacing + pkgDetailHeight : 0), panel.height - Style.gapsOut * 2)
+ 
+   function finishRequest(selection) {
+     if (!root.requestActive || !root.doneFile) {
+@@ -144,7 +178,299 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
 -    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
 +    return (root.filterText || root.dmenuActive || root.activeBang) && detail ? root.detailRowHeight : root.baseRowHeight
-+  }
-+
-+  function rowHeightForKind(kind, index, detail) {
-+    if (kind === "bang-pkg" && root.cursorActive && index === root.selectedIndex)
-+      return Math.max(root.detailRowHeight, Style.space(108))
-+    return root.rowHeightForDetail(detail)
 +  }
 +
 +  function clearBang() {
@@ -355,25 +363,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -178,7 +499,7 @@
-     return totals[full - 1] + root.rowSpacing + peek
-   }
- 
--  function rowListHeight(_serial, _count, _filter, _divider) {
-+  function rowListHeight(_serial, _count, _filter, _divider, _selected, _cursor) {
-     if (displayModel.count === 0) return root.baseRowHeight
- 
-     var totals = []
-@@ -189,7 +510,7 @@
-       var row = displayModel.get(i)
-       if (i > 0) total += root.rowSpacing
-       if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
--      total += root.rowHeightForDetail(row.detail)
-+      total += root.rowHeightForKind(row.kind, i, row.detail)
-       previousSection = row.section
-       totals.push(total)
-     }
-@@ -607,6 +928,10 @@
+@@ -607,6 +933,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -384,7 +374,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1056,7 @@
+@@ -731,6 +1061,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -392,7 +382,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -772,7 +1098,17 @@
+@@ -772,7 +1103,17 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -411,7 +401,7 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -824,6 +1160,7 @@
+@@ -824,6 +1165,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -419,7 +409,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1168,7 @@
+@@ -831,6 +1173,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -427,7 +417,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1180,7 @@
+@@ -842,6 +1185,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -435,7 +425,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1209,7 @@
+@@ -870,6 +1214,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -443,7 +433,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1321,121 @@
+@@ -981,6 +1326,121 @@
      onFileChanged: reload()
    }
  
@@ -565,7 +555,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1130,19 +1585,34 @@
+@@ -1130,19 +1590,34 @@
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -604,7 +594,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +1625,14 @@
+@@ -1155,11 +1630,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -620,7 +610,7 @@
              event.accepted = true
            }
          }
-@@ -1201,16 +1674,28 @@
+@@ -1201,16 +1679,28 @@
            Text {
              textFormat: Text.PlainText
              anchors.left: parent.left
@@ -652,7 +642,7 @@
          }
  
          Item {
-@@ -1224,6 +1709,7 @@
+@@ -1224,6 +1714,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -660,16 +650,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1267,7 +1753,7 @@
-               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
- 
-               width: ListView.view.width
--              height: root.rowHeightForDetail(row.detail)
-+              height: root.rowHeightForKind(row.kind, row.index, row.detail)
-               // Faded: the row is here to say the software is already
-               // installed, not to be picked.
-               opacity: row.disabled ? 0.4 : 1
-@@ -1344,12 +1830,14 @@
+@@ -1344,11 +1835,13 @@
                    textFormat: Text.PlainText
                    width: parent.width
                    text: row.detail
@@ -679,14 +660,12 @@
                    opacity: 0.52
                    font.family: root.fontFamily
                    font.pixelSize: Style.font.bodySmall
--                  elide: Text.ElideRight
-+                  wrapMode: row.kind === "bang-pkg" && row.hasCursor ? Text.WordWrap : Text.NoWrap
-+                  maximumLineCount: row.kind === "bang-pkg" && row.hasCursor ? 4 : 1
-+                  elide: row.kind === "bang-pkg" && row.hasCursor ? Text.ElideNone : Text.ElideRight
++                  wrapMode: Text.NoWrap
++                  maximumLineCount: 1
+                   elide: Text.ElideRight
                  }
                }
- 
-@@ -1447,7 +1935,17 @@
+@@ -1447,7 +1940,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -704,7 +683,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +1957,7 @@
+@@ -1459,7 +1962,7 @@
  
              Text {
                textFormat: Text.PlainText
@@ -713,3 +692,39 @@
                color: root.foreground
                opacity: 0.7
                font.family: root.fontFamily
+@@ -1470,6 +1973,35 @@
+           }
+         }
+ 
++        Item {
++          visible: root.pkgDetailVisible
++          width: parent.width
++          height: visible ? root.pkgDetailHeight : 0
++          clip: true
++
++          Rectangle {
++            anchors.left: parent.left
++            anchors.right: parent.right
++            anchors.top: parent.top
++            height: Style.spacing.hairline
++            color: Util.alpha(root.foreground, 0.2)
++          }
++
++          Text {
++            textFormat: Text.PlainText
++            anchors.fill: parent
++            anchors.topMargin: Style.space(8)
++            text: root.selectedPkgDetail || (root.bangPkgSearching ? "" : "Select a package to read its description")
++            color: root.foreground
++            opacity: root.selectedPkgDetail ? 0.78 : 0.45
++            font.family: root.fontFamily
++            font.pixelSize: Style.font.bodySmall
++            wrapMode: Text.WordWrap
++            maximumLineCount: 4
++            elide: Text.ElideRight
++          }
++        }
++
+         Item {
+           width: parent.width
+           height: 0

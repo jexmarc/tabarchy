@@ -177,7 +177,9 @@ installs the selected package (`omarchy pkg add` or `omarchy pkg aur add`).
 
 `i Tab` does not install whatever you typed. Official matches (core, extra,
 multilib, omarchy) are listed first, then AUR. Already-installed packages are
-marked. Enter opens a terminal to install the selected name.
+marked. The menu is double-wide; every result stays the same row height, and
+the highlighted package's description sits in a pane under the list. Enter
+opens a terminal to install the selected name.
 
 ## Dependencies
 
