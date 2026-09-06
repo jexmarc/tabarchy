@@ -519,10 +519,31 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -786,6 +1227,40 @@
+@@ -786,6 +1227,61 @@
      }
    }
  
++  function isFileRevealKey(event) {
++    if (!root.activeBang || root.activeBang.kind !== "files") return false
++    if (event.key === Qt.Key_Apostrophe)
++      return event.modifiers === Qt.NoModifier
++    if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.isCtrlOnly(event))
++      return true
++    return false
++  }
++
++  function revealSelectedFile() {
++    if (!root.activeBang || root.activeBang.kind !== "files") return
++    if (!root.cursorActive || root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return
++    var row = displayModel.get(root.selectedIndex)
++    if (!row || row.kind !== "bang-file" || !row.action) return
++    applySerial = requestSerial
++    opened = false
++    root.clearBang()
++    filterText = ""
++    Util.execArgv([root.pluginDir + "/bin/tabarchy-open", "--reveal", row.action])
++  }
++
 +  function isMarkdownPath(path) {
 +    var name = String(path || "").toLowerCase()
 +    return /\.(md|markdown|mkd|mdown|mdwn)$/.test(name)
@@ -560,7 +581,7 @@
    function requestDeleteSelected() {
      if (!root.cursorActive || root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return
      var row = displayModel.get(root.selectedIndex)
-@@ -824,6 +1299,7 @@
+@@ -824,6 +1320,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -568,7 +589,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1307,7 @@
+@@ -831,6 +1328,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -576,7 +597,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1319,7 @@
+@@ -842,6 +1340,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -584,7 +605,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1348,7 @@
+@@ -870,6 +1369,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -592,7 +613,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1460,129 @@
+@@ -981,6 +1481,129 @@
      onFileChanged: reload()
    }
  
@@ -722,7 +743,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1116,7 +1718,7 @@
+@@ -1116,7 +1739,7 @@
        Item {
          id: keyCatcher
          anchors.fill: parent
@@ -731,7 +752,7 @@
          focus: true
  
          Keys.priority: Keys.BeforeItem
-@@ -1125,24 +1727,53 @@
+@@ -1125,24 +1748,56 @@
              if (deleteConfirm.handleKey(event)) event.accepted = true
              return
            }
@@ -750,7 +771,11 @@
 +            return
 +          }
  
-           if (event.key === Qt.Key_Delete) {
+-          if (event.key === Qt.Key_Delete) {
++          if (root.isFileRevealKey(event)) {
++            root.revealSelectedFile()
++            event.accepted = true
++          } else if (event.key === Qt.Key_Delete) {
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -789,7 +814,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +1786,14 @@
+@@ -1155,11 +1810,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -805,7 +830,7 @@
              event.accepted = true
            }
          }
-@@ -1182,6 +1816,26 @@
+@@ -1182,6 +1840,26 @@
            onCanceled: root.cancelDelete()
            onConfirmed: root.confirmDelete()
          }
@@ -832,7 +857,7 @@
        }
  
        Column {
-@@ -1201,16 +1855,28 @@
+@@ -1201,16 +1879,28 @@
            Text {
              textFormat: Text.PlainText
              anchors.left: parent.left
@@ -864,7 +889,7 @@
          }
  
          Item {
-@@ -1224,6 +1890,7 @@
+@@ -1224,6 +1914,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -872,7 +897,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1261,16 +1928,19 @@
+@@ -1261,16 +1952,19 @@
                required property string action
                required property int childCount
                required property bool disabled
@@ -894,7 +919,7 @@
                radius: root.cornerRadius
                color: row.hasCursor ? root.selectedBackground : "transparent"
                borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
-@@ -1299,7 +1969,7 @@
+@@ -1299,7 +1993,7 @@
                  verticalAlignment: Text.AlignVCenter
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8)
@@ -903,7 +928,7 @@
                }
  
                Image {
-@@ -1316,7 +1986,7 @@
+@@ -1316,7 +2010,7 @@
                  asynchronous: true
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
@@ -912,7 +937,7 @@
                }
  
                Column {
-@@ -1328,27 +1998,57 @@
+@@ -1328,27 +2022,57 @@
                  anchors.verticalCenter: parent.verticalCenter
                  spacing: Style.space(3)
  
@@ -980,7 +1005,7 @@
                    elide: Text.ElideRight
                  }
                }
-@@ -1358,7 +2058,7 @@
+@@ -1358,7 +2082,7 @@
                  width: Style.space(14)
                  anchors.right: parent.right
                  anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
@@ -989,7 +1014,7 @@
                  spacing: 0
  
                  Text {
-@@ -1374,9 +2074,9 @@
+@@ -1374,9 +2098,9 @@
  
                  Text {
                    textFormat: Text.PlainText
@@ -1001,7 +1026,7 @@
                    font.family: root.fontFamily
                    font.pixelSize: Style.font.heading
                    font.weight: Font.Normal
-@@ -1447,7 +2147,17 @@
+@@ -1447,7 +2171,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -1019,7 +1044,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +2169,7 @@
+@@ -1459,7 +2193,7 @@
  
              Text {
                textFormat: Text.PlainText
@@ -1028,7 +1053,7 @@
                color: root.foreground
                opacity: 0.7
                font.family: root.fontFamily
-@@ -1470,6 +2180,35 @@
+@@ -1470,6 +2204,35 @@
            }
          }
  

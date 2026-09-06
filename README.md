@@ -105,7 +105,7 @@ clean slate.
 |---|---|---|
 | `m` | maps | an address, Enter |
 | `w` | web | a URL, an alias, **or** a search, Enter |
-| `f` | files | a filename, Enter to open |
+| `f` | files | a filename, Enter to open, `'` to show in Files |
 | `i` | install | a package name; pick a result, Enter to install |
 | `r` | remove | an installed package; pick a result, Enter to uninstall |
 | `?` | help | the command list; Enter opens the highlighted command |
@@ -116,6 +116,8 @@ clean slate.
 - Super+V or Ctrl+V pastes clipboard text into the current query.
 - Ctrl+J / Ctrl+K move the selection down / up while the menu is open
   (same as Down / Up). They are handled only by this overlay, not globally.
+- In `f Tab`, `'` (next to Enter) or Ctrl+Enter shows the selected file in
+  Files (Nautilus). Enter still opens it.
 
 Two or more characters never trigger a command, so `ma` still searches the menu.
 
@@ -191,7 +193,8 @@ Placeholders in `action`:
 
 `"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
 The menu is double-wide so longer filenames and paths stay readable.
-Enter uses a GUI app when one is registered. Markdown asks View or Edit
+`'` or Ctrl+Enter shows the selected file in Files (Nautilus selects it in
+the parent folder). Enter uses a GUI app when one is registered. Markdown asks View or Edit
 (View is the default; `V` / `E` also work). View opens Omawrite, or the
 Omarchy editor if Omawrite is missing. Edit always uses the Omarchy editor.
 Other text still opens in the editor because `xdg-open` cannot attach a

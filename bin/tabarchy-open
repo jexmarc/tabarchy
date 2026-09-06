@@ -8,7 +8,7 @@
 set -u
 
 mode=
-if [[ ${1-} == --view || ${1-} == --edit ]]; then
+if [[ ${1-} == --view || ${1-} == --edit || ${1-} == --reveal ]]; then
   mode=${1#--}
   shift
 fi
@@ -17,6 +17,18 @@ path=${1-}
 if [[ -z $path ]]; then
   echo "tabarchy-open: missing path" >&2
   exit 1
+fi
+
+if [[ $mode == reveal ]]; then
+  if command -v nautilus >/dev/null 2>&1; then
+    if [[ -d $path ]]; then
+      exec uwsm-app -- nautilus --new-window "$path"
+    fi
+    exec uwsm-app -- nautilus --select "$path"
+  fi
+  parent=$path
+  [[ -d $path ]] || parent=$(dirname -- "$path")
+  exec uwsm-app -- xdg-open "$parent"
 fi
 
 if [[ -d $path ]]; then

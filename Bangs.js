@@ -333,7 +333,7 @@ function defaults() {
       iconFont: "",
       placeholder: "filename",
       label: "Files",
-      help: "find and open a file",
+      help: "find a file · Enter opens · ' shows in Files",
       kind: "files",
       requiresQuery: true,
       action: ""
@@ -382,7 +382,7 @@ function bangHelpText(bang) {
   if (bang.help) return bang.help
   if (bang.key === "m") return "open an address in Google Maps"
   if (bang.kind === "web") return "URL, alias, or web search"
-  if (bang.kind === "files") return "find and open a file"
+  if (bang.kind === "files") return "find a file · Enter opens · ' shows in Files"
   if (bang.kind === "packages") return "search and install a package"
   if (bang.kind === "remove-packages") return "search and uninstall a package"
   if (bang.kind === "help") return "this list"

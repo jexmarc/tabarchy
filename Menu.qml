@@ -1227,6 +1227,27 @@ Item {
     }
   }
 
+  function isFileRevealKey(event) {
+    if (!root.activeBang || root.activeBang.kind !== "files") return false
+    if (event.key === Qt.Key_Apostrophe)
+      return event.modifiers === Qt.NoModifier
+    if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.isCtrlOnly(event))
+      return true
+    return false
+  }
+
+  function revealSelectedFile() {
+    if (!root.activeBang || root.activeBang.kind !== "files") return
+    if (!root.cursorActive || root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return
+    var row = displayModel.get(root.selectedIndex)
+    if (!row || row.kind !== "bang-file" || !row.action) return
+    applySerial = requestSerial
+    opened = false
+    root.clearBang()
+    filterText = ""
+    Util.execArgv([root.pluginDir + "/bin/tabarchy-open", "--reveal", row.action])
+  }
+
   function isMarkdownPath(path) {
     var name = String(path || "").toLowerCase()
     return /\.(md|markdown|mkd|mdown|mdwn)$/.test(name)
@@ -1742,7 +1763,10 @@ Item {
             return
           }
 
-          if (event.key === Qt.Key_Delete) {
+          if (root.isFileRevealKey(event)) {
+            root.revealSelectedFile()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Delete) {
             root.requestDeleteSelected()
             event.accepted = true
           } else if (event.key === Qt.Key_Escape) {
