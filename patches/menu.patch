@@ -24,7 +24,7 @@
 +  property var bangFileRows: []
 +  property int bangFilesGeneration: 0
 +  property var bangPkgRows: []
-+  property int bangPkgGeneration: 0
++  property int bangPkgRunId: 0
 +  property bool bangPkgSearching: false
 +  readonly property string pluginDir: {
 +    var dir = root.manifest && root.manifest.__sourceDir ? String(root.manifest.__sourceDir) : ""
@@ -36,7 +36,7 @@
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -144,7 +166,295 @@
+@@ -144,7 +166,296 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
@@ -51,7 +51,7 @@
 +    root.bangPkgRows = []
 +    root.bangPkgSearching = false
 +    root.bangFilesGeneration += 1
-+    root.bangPkgGeneration += 1
++    root.bangPkgRunId += 1
 +    bangFilesProc.running = false
 +    bangFilesTimer.stop()
 +    bangPkgProc.running = false
@@ -206,9 +206,9 @@
 +    if (!root.activeBang || root.activeBang.kind !== "packages") return
 +    var query = root.bangQuery.trim()
 +    var script = root.pluginDir + "/bin/tabarchy-pkg-search"
-+    root.bangPkgGeneration += 1
-+    var generation = root.bangPkgGeneration
 +    bangPkgProc.running = false
++    root.bangPkgRunId += 1
++    var runId = root.bangPkgRunId
 +    if (query.length < 2) {
 +      root.bangPkgSearching = false
 +      root.bangPkgRows = []
@@ -217,10 +217,11 @@
 +    }
 +
 +    root.bangPkgSearching = true
-+    bangPkgProc.generation = generation
-+    bangPkgProc.command = ["/usr/bin/python3", script, query]
++    root.rebuildDisplay()
 +    Qt.callLater(function() {
-+      if (bangPkgProc.generation !== root.bangPkgGeneration) return
++      if (runId !== root.bangPkgRunId) return
++      bangPkgProc.runId = runId
++      bangPkgProc.command = ["/usr/bin/python3", script, query]
 +      bangPkgProc.running = true
 +    })
 +  }
@@ -333,7 +334,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -607,6 +917,10 @@
+@@ -607,6 +918,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -344,7 +345,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1045,7 @@
+@@ -731,6 +1046,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -352,7 +353,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -772,7 +1087,17 @@
+@@ -772,7 +1088,17 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -371,7 +372,7 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -824,6 +1149,7 @@
+@@ -824,6 +1150,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -379,7 +380,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1157,7 @@
+@@ -831,6 +1158,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -387,7 +388,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1169,7 @@
+@@ -842,6 +1170,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -395,7 +396,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1198,7 @@
+@@ -870,6 +1199,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -403,7 +404,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1310,103 @@
+@@ -981,6 +1311,103 @@
      onFileChanged: reload()
    }
  
@@ -477,7 +478,7 @@
 +
 +  Process {
 +    id: bangPkgProc
-+    property int generation: 0
++    property int runId: 0
 +    stdout: StdioCollector {
 +      id: bangPkgOut
 +      waitForEnd: true
@@ -487,7 +488,7 @@
 +      waitForEnd: true
 +    }
 +    onExited: function(exitCode) {
-+      if (bangPkgProc.generation !== root.bangPkgGeneration) return
++      if (bangPkgProc.runId !== root.bangPkgRunId) return
 +      if (!root.activeBang || root.activeBang.kind !== "packages") return
 +      root.bangPkgSearching = false
 +      var text = bangPkgOut.text || ""
@@ -507,7 +508,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1130,19 +1556,34 @@
+@@ -1130,19 +1557,34 @@
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -546,7 +547,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +1596,14 @@
+@@ -1155,11 +1597,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -562,9 +563,13 @@
              event.accepted = true
            }
          }
-@@ -1203,9 +1647,9 @@
+@@ -1201,16 +1646,38 @@
+           Text {
+             textFormat: Text.PlainText
              anchors.left: parent.left
-             anchors.right: parent.right
+-            anchors.right: parent.right
++            anchors.right: headerSpinner.left
++            anchors.rightMargin: headerSpinner.visible ? Style.space(8) : 0
              anchors.verticalCenter: parent.verticalCenter
 -            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
 +            text: root.headerText()
@@ -574,7 +579,41 @@
              font.family: root.fontFamily
              font.pixelSize: Style.font.heading
              elide: Text.ElideRight
-@@ -1344,7 +1788,7 @@
+           }
+ 
++          Text {
++            id: headerSpinner
++            visible: root.bangPkgSearching
++            textFormat: Text.PlainText
++            text: "󰦖"
++            color: root.foreground
++            opacity: 0.8
++            font.family: root.fontFamily
++            font.pixelSize: Style.font.heading
++            anchors.right: parent.right
++            anchors.verticalCenter: parent.verticalCenter
++            RotationAnimator on rotation {
++              running: headerSpinner.visible
++              from: 0
++              to: 360
++              duration: 800
++              loops: Animation.Infinite
++              onRunningChanged: if (!running) headerSpinner.rotation = 0
++            }
++          }
++
+         }
+ 
+         Item {
+@@ -1224,6 +1691,7 @@
+             clip: true
+             spacing: root.rowSpacing
+             boundsBehavior: Flickable.StopAtBounds
++            opacity: root.bangPkgSearching && displayModel.count > 0 ? 0.55 : 1
+ 
+             section.property: "section"
+             section.criteria: ViewSection.FullString
+@@ -1344,7 +1812,7 @@
                    textFormat: Text.PlainText
                    width: parent.width
                    text: row.detail
@@ -583,7 +622,28 @@
                    color: root.foreground
                    opacity: 0.52
                    font.family: root.fontFamily
-@@ -1459,7 +1903,7 @@
+@@ -1448,18 +1916,27 @@
+             visible: displayModel.count === 0 && root.mode !== "input"
+ 
+             Text {
+-              text: "󰈉"
++              id: emptyIcon
++              text: root.bangPkgSearching ? "󰦖" : "󰈉"
+               color: root.selectedText
+               opacity: 0.8
+               font.family: root.fontFamily
+               font.pixelSize: Style.font.displayLarge
+               horizontalAlignment: Text.AlignHCenter
+               width: Style.space(320)
++              RotationAnimator on rotation {
++                running: root.bangPkgSearching && displayModel.count === 0
++                from: 0
++                to: 360
++                duration: 800
++                loops: Animation.Infinite
++                onRunningChanged: if (!running) emptyIcon.rotation = 0
++              }
+             }
  
              Text {
                textFormat: Text.PlainText

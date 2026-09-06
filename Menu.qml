@@ -77,7 +77,7 @@ Item {
   property var bangFileRows: []
   property int bangFilesGeneration: 0
   property var bangPkgRows: []
-  property int bangPkgGeneration: 0
+  property int bangPkgRunId: 0
   property bool bangPkgSearching: false
   readonly property string pluginDir: {
     var dir = root.manifest && root.manifest.__sourceDir ? String(root.manifest.__sourceDir) : ""
@@ -176,7 +176,7 @@ Item {
     root.bangPkgRows = []
     root.bangPkgSearching = false
     root.bangFilesGeneration += 1
-    root.bangPkgGeneration += 1
+    root.bangPkgRunId += 1
     bangFilesProc.running = false
     bangFilesTimer.stop()
     bangPkgProc.running = false
@@ -331,9 +331,9 @@ Item {
     if (!root.activeBang || root.activeBang.kind !== "packages") return
     var query = root.bangQuery.trim()
     var script = root.pluginDir + "/bin/tabarchy-pkg-search"
-    root.bangPkgGeneration += 1
-    var generation = root.bangPkgGeneration
     bangPkgProc.running = false
+    root.bangPkgRunId += 1
+    var runId = root.bangPkgRunId
     if (query.length < 2) {
       root.bangPkgSearching = false
       root.bangPkgRows = []
@@ -342,10 +342,11 @@ Item {
     }
 
     root.bangPkgSearching = true
-    bangPkgProc.generation = generation
-    bangPkgProc.command = ["/usr/bin/python3", script, query]
+    root.rebuildDisplay()
     Qt.callLater(function() {
-      if (bangPkgProc.generation !== root.bangPkgGeneration) return
+      if (runId !== root.bangPkgRunId) return
+      bangPkgProc.runId = runId
+      bangPkgProc.command = ["/usr/bin/python3", script, query]
       bangPkgProc.running = true
     })
   }
@@ -1380,7 +1381,7 @@ Item {
 
   Process {
     id: bangPkgProc
-    property int generation: 0
+    property int runId: 0
     stdout: StdioCollector {
       id: bangPkgOut
       waitForEnd: true
@@ -1390,7 +1391,7 @@ Item {
       waitForEnd: true
     }
     onExited: function(exitCode) {
-      if (bangPkgProc.generation !== root.bangPkgGeneration) return
+      if (bangPkgProc.runId !== root.bangPkgRunId) return
       if (!root.activeBang || root.activeBang.kind !== "packages") return
       root.bangPkgSearching = false
       var text = bangPkgOut.text || ""
@@ -1645,7 +1646,8 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: headerSpinner.left
+            anchors.rightMargin: headerSpinner.visible ? Style.space(8) : 0
             anchors.verticalCenter: parent.verticalCenter
             text: root.headerText()
             color: root.foreground
@@ -1653,6 +1655,27 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          Text {
+            id: headerSpinner
+            visible: root.bangPkgSearching
+            textFormat: Text.PlainText
+            text: "󰦖"
+            color: root.foreground
+            opacity: 0.8
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.heading
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            RotationAnimator on rotation {
+              running: headerSpinner.visible
+              from: 0
+              to: 360
+              duration: 800
+              loops: Animation.Infinite
+              onRunningChanged: if (!running) headerSpinner.rotation = 0
+            }
           }
 
         }
@@ -1668,6 +1691,7 @@ Item {
             clip: true
             spacing: root.rowSpacing
             boundsBehavior: Flickable.StopAtBounds
+            opacity: root.bangPkgSearching && displayModel.count > 0 ? 0.55 : 1
 
             section.property: "section"
             section.criteria: ViewSection.FullString
@@ -1892,13 +1916,22 @@ Item {
             visible: displayModel.count === 0 && root.mode !== "input"
 
             Text {
-              text: "󰈉"
+              id: emptyIcon
+              text: root.bangPkgSearching ? "󰦖" : "󰈉"
               color: root.selectedText
               opacity: 0.8
               font.family: root.fontFamily
               font.pixelSize: Style.font.displayLarge
               horizontalAlignment: Text.AlignHCenter
               width: Style.space(320)
+              RotationAnimator on rotation {
+                running: root.bangPkgSearching && displayModel.count === 0
+                from: 0
+                to: 360
+                duration: 800
+                loops: Animation.Infinite
+                onRunningChanged: if (!running) emptyIcon.rotation = 0
+              }
             }
 
             Text {
