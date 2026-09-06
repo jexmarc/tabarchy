@@ -7,7 +7,7 @@ Item {
 
   property bool running: false
   property int cells: 9
-  property color led: "#ff2a14"
+  property color led: Color.accent
   property int duration: 720
 
   readonly property int cellSize: Math.max(2, Math.round(height * 0.72))
