@@ -66,6 +66,7 @@ Item {
   property string activeMenu: "root"
   property string filterText: ""
   property var bangs: Bangs.defaults()
+  property string searchProvider: "google"
   property var activeBang: null
   property string bangQuery: ""
   property string bangStashKey: ""
@@ -320,6 +321,17 @@ Item {
     } else {
       var query = root.bangQuery
       var missing = bang.requiresQuery && !String(query).trim()
+      var label = bang.label || bang.name
+      var detail = String(query).trim() || bang.placeholder
+      var action = ""
+      if (!missing && bang.kind === "web") {
+        var dest = Bangs.webDestination(query, root.searchProvider, Util.shellQuote)
+        label = dest.label
+        detail = dest.detail || detail
+        action = dest.action
+      } else if (!missing) {
+        action = Bangs.expandAction(bang.action, query, Util.shellQuote)
+      }
       displayModel.append({
         itemId: "bang." + bang.key,
         disabled: missing,
@@ -328,12 +340,12 @@ Item {
         iconFont: bang.iconFont,
         appIcon: "",
         appId: "",
-        label: bang.label || bang.name,
+        label: label,
         target: "",
-        detail: String(query).trim() || bang.placeholder,
+        detail: detail,
         path: "",
         childCount: 0,
-        action: missing ? "" : Bangs.expandAction(bang.action, query, Util.shellQuote),
+        action: action,
         provider: "",
         score: 0,
         section: ""
@@ -1205,6 +1217,21 @@ Item {
     printErrors: false
     onLoaded: { root.bangs = Bangs.mergeBangs(Bangs.defaults(), Bangs.parseBangs(text())) }
     onLoadFailed: { root.bangs = Bangs.defaults() }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: searchProviderFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/defaults/search"
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      var next = String(text() || "").trim() || "google"
+      root.searchProvider = next
+      if (root.opened && root.activeBang && root.activeBang.kind === "web")
+        root.rebuildDisplay()
+    }
+    onLoadFailed: { root.searchProvider = "google" }
     onFileChanged: reload()
   }
 

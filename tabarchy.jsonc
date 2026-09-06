@@ -19,12 +19,11 @@
     "action": "omarchy-launch-browser \"https://www.google.com/maps/search/?api=1&query={{query_encoded}}\""
   },
   "w": {
-    "name": "url",
+    "name": "web",
     "icon": "󰖟",
-    "placeholder": "amazon.com",
-    "label": "Open URL",
-    "requiresQuery": true,
-    "action": "omarchy-launch-browser {{url}}"
+    "placeholder": "url or search",
+    "label": "Open URL or search",
+    "kind": "web"
   },
   "f": {
     "name": "files",

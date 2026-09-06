@@ -16,6 +16,67 @@ function toUrl(query) {
   return "https://" + q
 }
 
+function looksLikeUrl(query) {
+  var q = String(query || "").trim()
+  if (!q || /\s/.test(q)) return false
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(q)) return true
+  if (q.slice(0, 2) === "//") return true
+  if (/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?([/?#].*)?$/i.test(q)) return true
+  if (/^(\d{1,3}\.){3}\d{1,3}(:\d+)?([/?#].*)?$/.test(q)) return true
+  return /^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(:\d+)?([/?#].*)?$/.test(q)
+}
+
+function searchProviders() {
+  return {
+    google: { id: "google", name: "Google", url: "https://www.google.com/search?q={{query_encoded}}" },
+    ddg: { id: "ddg", name: "DuckDuckGo", url: "https://duckduckgo.com/?q={{query_encoded}}" },
+    brave: { id: "brave", name: "Brave", url: "https://search.brave.com/search?q={{query_encoded}}" },
+    bing: { id: "bing", name: "Bing", url: "https://www.bing.com/search?q={{query_encoded}}" },
+    ecosia: { id: "ecosia", name: "Ecosia", url: "https://www.ecosia.org/search?q={{query_encoded}}" },
+    kagi: { id: "kagi", name: "Kagi", url: "https://kagi.com/search?q={{query_encoded}}" },
+    startpage: { id: "startpage", name: "Startpage", url: "https://www.startpage.com/sp/search?query={{query_encoded}}" }
+  }
+}
+
+function resolveSearchProvider(value) {
+  var raw = String(value || "google").trim()
+  if (!raw) raw = "google"
+  var key = raw.toLowerCase()
+  if (key === "duckduckgo" || key === "duck" || key === "ddg") key = "ddg"
+  var providers = searchProviders()
+  if (providers[key]) return providers[key]
+  if (raw.indexOf("%s") >= 0 || raw.indexOf("{{query") >= 0) {
+    return {
+      id: "custom",
+      name: "Search",
+      url: raw.replace(/%s/g, "{{query_encoded}}")
+    }
+  }
+  return providers.google
+}
+
+function webDestination(query, providerValue, quoteFn) {
+  var q = String(query || "").trim()
+  var quote = quoteFn || shellQuote
+  var provider = resolveSearchProvider(providerValue)
+  if (looksLikeUrl(q)) {
+    var url = toUrl(q)
+    return {
+      kind: "url",
+      label: "Open URL",
+      detail: url,
+      action: "omarchy-launch-browser " + quote(url)
+    }
+  }
+  var searchUrl = String(provider.url || "").replace(/\{\{query_encoded\}\}/g, encodeURIComponent(q))
+  return {
+    kind: "search",
+    label: "Search " + provider.name,
+    detail: q,
+    action: "omarchy-launch-browser " + quote(searchUrl)
+  }
+}
+
 function normalizeBang(key, raw) {
   var k = String(key || "").toLowerCase()
   if (k.length !== 1) return null
@@ -26,11 +87,11 @@ function normalizeBang(key, raw) {
   if (!value || typeof value !== "object") return null
 
   var kind = String(value.kind || (value.action ? "command" : "")).toLowerCase()
-  if (kind !== "files" && kind !== "command") return null
+  if (kind !== "files" && kind !== "command" && kind !== "web") return null
   if (kind === "command" && !value.action) return null
 
   var requiresQuery = value.requiresQuery
-  if (requiresQuery === undefined) requiresQuery = kind === "files" || k === "w" || k === "i"
+  if (requiresQuery === undefined) requiresQuery = kind === "files" || kind === "web" || k === "i"
 
   return {
     key: k,
@@ -83,14 +144,14 @@ function defaults() {
     },
     w: {
       key: "w",
-      name: "url",
+      name: "web",
       icon: "󰖟",
       iconFont: "",
-      placeholder: "amazon.com",
-      label: "Open URL",
-      kind: "command",
+      placeholder: "url or search",
+      label: "Open URL or search",
+      kind: "web",
       requiresQuery: true,
-      action: "omarchy-launch-browser {{url}}"
+      action: ""
     },
     f: {
       key: "f",

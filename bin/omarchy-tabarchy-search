@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# omarchy:summary=Set Tabarchy's default web search provider
+# omarchy:group=tabarchy
+# omarchy:name=search
+# omarchy:args=[google|ddg|brave|bing|ecosia|kagi|startpage|<url-with-%s>]
+# omarchy:examples=omarchy tabarchy search|omarchy tabarchy search google|omarchy tabarchy search ddg
+
+set -euo pipefail
+
+file="$HOME/.config/omarchy/defaults/search"
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy-tabarchy-search [google|ddg|brave|bing|ecosia|kagi|startpage|<url-with-%s>]
+
+Show or set the search provider Tabarchy uses for `w Tab` when the query
+is not a URL. Default is google.
+
+  omarchy-tabarchy-search                 print the current provider
+  omarchy-tabarchy-search google          use Google
+  omarchy-tabarchy-search ddg             use DuckDuckGo
+  omarchy-tabarchy-search --list          list built-in providers
+  omarchy-tabarchy-search 'https://example.com/search?q=%s'
+EOF
+}
+
+normalize() {
+  local raw="${1,,}"
+  case "$raw" in
+  google | g) echo google ;;
+  ddg | duck | duckduckgo) echo ddg ;;
+  brave) echo brave ;;
+  bing) echo bing ;;
+  ecosia) echo ecosia ;;
+  kagi) echo kagi ;;
+  startpage) echo startpage ;;
+  *) return 1 ;;
+  esac
+}
+
+display_name() {
+  case "$1" in
+  google) echo Google ;;
+  ddg) echo DuckDuckGo ;;
+  brave) echo Brave ;;
+  bing) echo Bing ;;
+  ecosia) echo Ecosia ;;
+  kagi) echo Kagi ;;
+  startpage) echo Startpage ;;
+  *) echo Search ;;
+  esac
+}
+
+current() {
+  if [[ -f $file ]]; then
+    local value
+    value=$(<"$file")
+    value=${value%%$'\n'}
+    value=${value%%$'\r'}
+    [[ -n $value ]] && printf '%s\n' "$value" && return
+  fi
+  echo google
+}
+
+if (($# == 0)); then
+  current
+  exit 0
+fi
+
+case "${1:-}" in
+-h | --help)
+  usage
+  exit 0
+  ;;
+--list | -l)
+  printf '%s\n' google ddg brave bing ecosia kagi startpage
+  exit 0
+  ;;
+esac
+
+value="$1"
+canonical=""
+if canonical=$(normalize "$value"); then
+  value="$canonical"
+elif [[ $value == *'%s'* || $value == *'{{query'* ]]; then
+  :
+else
+  usage >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$file")"
+printf '%s\n' "$value" >"$file"
+
+name=$(display_name "$value")
+if [[ $value == *'://'* ]]; then
+  omarchy-notification-send -g 󰖟 "Tabarchy search is a custom provider"
+else
+  omarchy-notification-send -g 󰖟 "$name is now the Tabarchy search provider"
+fi
