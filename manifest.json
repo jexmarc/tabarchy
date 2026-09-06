@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.jexmarc.tabarchy",
   "name": "Tabarchy",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "author": "jexmarc",
   "license": "MIT",
   "description": "Super+Space menu with single-letter Tab commands for maps, URLs, files, and anything you configure.",

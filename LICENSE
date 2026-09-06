@@ -23,4 +23,5 @@ SOFTWARE.
 
 Tabarchy's Menu.qml, MenuModel.js, and BarWidget.qml are derived from
 Omarchy's first-party omarchy.menu plugin. Tabarchy-specific behavior lives
-in Bangs.js, Cli.qml, bin/omarchy-tabarchy-search, and patches/menu.patch.
+in Bangs.js, Cli.qml, Scanner.qml, ChoiceDialog.qml, patches/menu.patch,
+and bin/omarchy-tabarchy-search, bin/tabarchy-pkg-search, bin/tabarchy-open.

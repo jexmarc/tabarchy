@@ -374,13 +374,14 @@ Item {
 
     root.bangPkgActiveQuery = query
     bangPkgProc.command = root.pkgRemove
-      ? ["/usr/bin/python3", script, "--installed", query]
-      : ["/usr/bin/python3", script, query]
+      ? ["/usr/bin/python3", script, "--installed", "--", query]
+      : ["/usr/bin/python3", script, "--", query]
     bangPkgProc.running = true
     root.rebuildDisplay()
   }
 
   function bangHelpRow(bang, index) {
+    var command = bang.kind !== "help" && bang.kind !== "help-key"
     return {
       itemId: "bang.help." + bang.key,
       disabled: false,
@@ -390,10 +391,10 @@ Item {
       appIcon: "",
       appId: "",
       label: bang.key + "  " + (bang.name || bang.key),
-      target: bang.key,
+      target: command ? bang.key : "",
       detail: Bangs.bangHelpText(bang),
       path: "",
-      childCount: bang.kind === "help" ? 0 : 1,
+      childCount: command ? 1 : 0,
       action: "",
       provider: "",
       score: index,
@@ -508,6 +509,16 @@ Item {
           if (hay.indexOf(helpQuery) < 0) continue
         }
         displayModel.append(root.bangHelpRow(item, shown))
+        shown += 1
+      }
+      var shortcuts = Bangs.helpShortcutRows()
+      for (var s = 0; s < shortcuts.length; s++) {
+        var shortcut = shortcuts[s]
+        if (helpQuery) {
+          var shortcutHay = (shortcut.key + " " + shortcut.name + " " + shortcut.help).toLowerCase()
+          if (shortcutHay.indexOf(helpQuery) < 0) continue
+        }
+        displayModel.append(root.bangHelpRow(shortcut, shown))
         shown += 1
       }
     } else if (bang.kind === "web") {
@@ -2098,9 +2109,9 @@ Item {
 
                 Text {
                   textFormat: Text.PlainText
-                  text: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target !== "?") ? "›" : ""
+                  text: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target.length > 0) ? "›" : ""
                   color: row.hasCursor ? root.selectedText : root.foreground
-                  opacity: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target !== "?") ? 0.36 : 0
+                  opacity: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target.length > 0) ? 0.36 : 0
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
                   font.weight: Font.Normal

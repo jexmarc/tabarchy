@@ -13,8 +13,7 @@ m Tab
 Enter
 ```
 
-opens Google Maps in your default browser. Super+V pastes the clipboard into
-the query (Omarchy's universal paste, which the stock menu ignored).
+opens Google Maps in your default browser.
 
 Plugins run unsandboxed inside the long-lived `omarchy-shell` process, with
 your user permissions. Review the source before you enable it.
@@ -41,6 +40,9 @@ If you previously installed the un-namespaced `tabarchy` id, remove that first:
 ```bash
 omarchy plugin remove tabarchy --yes
 ```
+
+The menu stays loaded in `omarchy-shell`. After enabling or updating Tabarchy,
+run `omarchy restart shell` so Super+Space picks up the new code.
 
 ## Restore the stock menu
 
@@ -99,34 +101,39 @@ removal does not delete them:
 They have no effect while Tabarchy is gone. Delete them by hand if you want a
 clean slate.
 
-## Use
+## Commands
+
+All of these start from Super+Space, then **one letter + Tab**.
 
 | Type | Tab | Then |
 |---|---|---|
 | `m` | maps | an address, Enter |
 | `w` | web | a URL, an alias, **or** a search, Enter |
-| `f` | files | a filename, Enter to open, `'` to show in Files |
-| `i` | install | a package name; pick a result, Enter to install |
-| `r` | remove | an installed package; pick a result, Enter to uninstall |
-| `?` | help | the command list; Enter opens the highlighted command |
-
-- Tab with a matching letter enters the command; Tab again leaves it.
-- Escape clears the argument, then leaves the command, then closes the menu.
-- Backspace on an empty argument also leaves the command.
-- Super+V or Ctrl+V pastes clipboard text into the current query.
-- Ctrl+J / Ctrl+K move the selection down / up while the menu is open
-  (same as Down / Up). They are handled only by this overlay, not globally.
-- In `f Tab`, `'` (next to Enter) or Ctrl+Enter shows the selected file in
-  Files (Nautilus). Enter still opens it.
+| `f` | files | a filename; Enter opens, `'` shows in Files |
+| `i` | install | a package name (2+ chars); pick a result, Enter to install |
+| `r` | remove | an installed package (2+ chars); pick a result, Enter to uninstall |
+| `?` | help | the command list plus keys; Enter opens the highlighted command |
 
 Two or more characters never trigger a command, so `ma` still searches the menu.
 
-`w Tab` lists matching aliases as you type, then a URL or a search. Enter
-opens the highlighted row. Defaults include `amazon` → amazon.com,
-`discord` → discord.com, and `gh` → github.com. Type `amazon.com` or `https://…` to open a URL
-directly. Anything else is a web search. The default provider is Google.
+`? Tab` lists every enabled command (including letters you add) and the
+navigation keys. Enter on a command row jumps into that command.
 
-Aliases live in `~/.config/omarchy/tabarchy.jsonc` (watched live):
+### Maps (`m Tab`)
+
+Type an address and Enter. Opens Google Maps in the default browser.
+
+### Web (`w Tab`)
+
+The list filters as you type:
+
+1. Matching **aliases**
+2. **Open URL** when the query looks like a URL (`amazon.com`, `https://…`)
+3. **Search** with the configured provider (Google by default)
+
+Default aliases: `amazon` → amazon.com, `discord` → discord.com, `gh` →
+github.com. Add or disable aliases in `~/.config/omarchy/tabarchy.jsonc`
+(watched live):
 
 ```jsonc
 {
@@ -138,16 +145,12 @@ Aliases live in `~/.config/omarchy/tabarchy.jsonc` (watched live):
 }
 ```
 
-Set an alias to `false` to drop a default. Tabarchy does not read browser
-bookmarks; aliases are the supported shortcut list.
+Set an alias to `false` to drop a default. `https://` is added if you omit it.
+Tabarchy does not read browser bookmarks.
 
-Enabling the plugin puts `omarchy-tabarchy-search` on your PATH (`~/.local/bin`).
-That symlink is removed when you disable or uninstall Tabarchy. If you already
-had a command with that name, enabling Tabarchy replaces the symlink.
-
-The stock `omarchy` dispatcher only loads packaged binaries, so this is the
-plugin CLI rather than `omarchy tabarchy search`. The value is stored in
-`~/.config/omarchy/defaults/search` and the menu picks it up live.
+The search provider is `~/.config/omarchy/defaults/search`. Enabling the plugin
+puts `omarchy-tabarchy-search` on your PATH (`~/.local/bin`). That symlink is
+removed when you disable or uninstall Tabarchy.
 
 ```
 omarchy-tabarchy-search                 # print current provider
@@ -157,6 +160,54 @@ omarchy-tabarchy-search brave
 omarchy-tabarchy-search --list
 omarchy-tabarchy-search 'https://example.com/search?q=%s'
 ```
+
+### Files (`f Tab`)
+
+`fd` under `$HOME`. The menu is double-wide so longer paths stay readable.
+
+- **Enter** opens the file. GUI types (images, PDFs, folders) use `xdg-open`.
+  Text that would otherwise launch nvim with no terminal goes through
+  `omarchy launch editor`.
+- **Markdown** asks View or Edit (View is the default). **Enter** or **V**
+  opens Omawrite, or the Omarchy editor if Omawrite is missing. **E** edits.
+  Escape cancels.
+- **`'`** (next to Enter) or **Ctrl+Enter** shows the selected file in Files
+  (Nautilus selects it in the parent folder). A selected directory opens that
+  folder.
+
+### Install (`i Tab`)
+
+Searches Arch, the Omarchy repo, then the AUR. Official matches first.
+Already-installed packages stay in the list with an accent-colored Installed
+badge and are skipped when moving. The menu is double-wide; every result is
+the same row height, with the highlighted description in a pane under the
+list. Enter opens a terminal to install (`omarchy pkg add` or
+`omarchy pkg aur add`). It does not install whatever you typed.
+
+### Remove (`r Tab`)
+
+Same list UX as install, but only installed packages (including AUR builds
+already on the machine). Enter runs `omarchy pkg drop` (`sudo pacman -Rns`).
+
+## Keys
+
+These are handled only while the Super+Space overlay has focus. They are not
+global Hyprland binds.
+
+| Key | Action |
+|---|---|
+| Tab | enter a matching one-letter command, or leave it |
+| Escape | clear the query, then leave the command, then close the menu |
+| Backspace / Left on an empty query | leave the command (or go back a menu) |
+| Enter / Right | activate the highlighted row |
+| Up / Down | move the selection |
+| **Ctrl+J / Ctrl+K** | Down / Up |
+| Page Up / Page Down | jump six rows |
+| Super+V / Ctrl+V / Shift+Insert | paste clipboard into the current query |
+| `'` or Ctrl+Enter | in `f Tab`, show the selected file in Files |
+| V / E | in the markdown prompt, View / Edit |
+
+`? Tab` also lists Ctrl+J, Ctrl+K, and paste.
 
 ## Configure
 
@@ -191,31 +242,25 @@ Placeholders in `action`:
 | `{{query_encoded}}` | URL-encoded |
 | `{{url}}` | `https://` prepended if there is no scheme, quoted |
 
-`"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
-The menu is double-wide so longer filenames and paths stay readable.
-`'` or Ctrl+Enter shows the selected file in Files (Nautilus selects it in
-the parent folder). Enter uses a GUI app when one is registered. Markdown asks View or Edit
-(View is the default; `V` / `E` also work). View opens Omawrite, or the
-Omarchy editor if Omawrite is missing. Edit always uses the Omarchy editor.
-Other text still opens in the editor because `xdg-open` cannot attach a
-terminal from this overlay.
-`"kind": "help"` lists every enabled command (`? Tab`). Enter on a row
-opens that command. `"kind": "web"` lists aliases, opens a URL, or falls back to the configured search provider.
-Top-level `"aliases"` (or `"aliases"` on the web command) maps names to URLs.
-`"kind": "packages"` searches Arch, the Omarchy repo, and the AUR, then
-installs the selected package (`omarchy pkg add` or `omarchy pkg aur add`).
-`"kind": "remove-packages"` searches only packages already on the machine,
-then uninstalls the selected name (`omarchy pkg drop`, which is `pacman -Rns`).
+`"kind": "files"` lists `fd` matches under `$HOME`.
+`"kind": "help"` lists every enabled command (`? Tab`).
+`"kind": "web"` lists aliases, opens a URL, or searches.
+`"kind": "packages"` searches and installs (`omarchy pkg add` / `omarchy pkg aur add`).
+`"kind": "remove-packages"` searches installed packages and removes them
+(`omarchy pkg drop`).
 
-`i Tab` does not install whatever you typed. Official matches (core, extra,
-multilib, omarchy) are listed first, then AUR. Already-installed packages stay
-in the list with an accent-colored Installed badge and are skipped when moving
-through results. The menu is double-wide, matching file search. Every result
-stays the same row height, and the highlighted package's description sits in a
-pane under the list. Enter opens a terminal to install the selected name.
+A custom `"action"` is a shell command. That is intentional and runs with your
+user permissions.
 
-`r Tab` is the same list, except it only matches installed packages and Enter
-removes the selected one. Every hit is selectable.
+## Security
+
+Tabarchy is a shell plugin. It is not sandboxed. Treat
+`~/.config/omarchy/tabarchy.jsonc` like a script: only put actions in it that
+you would run yourself.
+
+Searches (`fd`, `pacman`, `yay`) and file opens pass arguments as argv, not
+through a shell. Package install/remove names are shell-quoted before they go
+to `omarchy-pkg-*`. File open requires an absolute path.
 
 ## Dependencies
 
@@ -224,11 +269,13 @@ Already present on a normal Omarchy install:
 - `fd` — file search (`f Tab`)
 - `wl-paste` — clipboard paste
 - `omarchy-launch-browser` — URLs, maps, and web search
-- `xdg-open` / `uwsm-app` — opening files that have a GUI handler
-- `omarchy-launch-editor` — markdown, source, and other text when `xdg-open` would launch a terminal editor with no terminal
+- `xdg-open` / `uwsm-app` — GUI file handlers
+- `nautilus` — show in Files (`'` / Ctrl+Enter)
+- `omarchy-launch-editor` — text when `xdg-open` would attach no terminal
+- `omawrite` — markdown View, if installed
 - `python3`, `pacman`, `yay` — package search (`i Tab`, `r Tab`)
-- `omarchy-pkg-add` / `omarchy-pkg-aur-add` — install the selected package (may prompt for sudo)
-- `omarchy-pkg-drop` — remove the selected package (`r Tab`, may prompt for sudo)
+- `omarchy-pkg-add` / `omarchy-pkg-aur-add` — install (may prompt for sudo)
+- `omarchy-pkg-drop` — remove (`r Tab`, may prompt for sudo)
 
 ## Why this stands in for the Omarchy menu
 
@@ -238,16 +285,16 @@ that menu. Tabarchy therefore sets `clonedFrom: omarchy.menu`: Super+Space,
 `omarchy menu`, and the bar icon keep working. The stock menu is not removed;
 see [Restore the stock menu](#restore-the-stock-menu).
 
-That is a stand-in, not a second launcher. Tabarchy-specific code is `Bangs.js`,
-`Cli.qml`, `bin/omarchy-tabarchy-search`, and `patches/menu.patch`.
-`MenuModel.js` and `BarWidget.qml` are unmodified copies of Omarchy's. `Menu.qml`
-is Omarchy's menu plus that patch.
+That is a stand-in, not a second launcher. Tabarchy-specific code is
+`Bangs.js`, `Cli.qml`, `Scanner.qml`, `ChoiceDialog.qml`,
+`bin/omarchy-tabarchy-search`, `bin/tabarchy-pkg-search`, `bin/tabarchy-open`,
+and `patches/menu.patch`. `MenuModel.js` and `BarWidget.qml` are unmodified
+copies of Omarchy's. `Menu.qml` is Omarchy's menu plus that patch.
 
 `omarchy plugin update io.github.jexmarc.tabarchy` fast-forwards **this** git
-repo. It does not pull Omarchy menu fixes. The menu stays loaded in
-`omarchy-shell`, so after an update run `omarchy restart shell` or Super+Space
-will still be the previous Tabarchy. After an Omarchy update, rebase the
-stand-in onto the new menu:
+repo. It does not pull Omarchy menu fixes. After an update run
+`omarchy restart shell`. After an Omarchy update, rebase the stand-in onto the
+new menu:
 
 ```bash
 ~/.config/omarchy/plugins/io.github.jexmarc.tabarchy/scripts/refresh-from-omarchy.sh

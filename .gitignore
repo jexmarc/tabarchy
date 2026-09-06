@@ -1,3 +1,13 @@
 *.qmlc
 .qmlcache/
+__pycache__/
+*.pyc
 .DS_Store
+*~
+*.swp
+*.swo
+*.orig
+*.bak
+.env
+.env.*
+*.log

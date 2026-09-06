@@ -18,6 +18,10 @@ if [[ -z $path ]]; then
   echo "tabarchy-open: missing path" >&2
   exit 1
 fi
+if [[ $path != /* ]]; then
+  echo "tabarchy-open: path must be absolute" >&2
+  exit 1
+fi
 
 if [[ $mode == reveal ]]; then
   if command -v nautilus >/dev/null 2>&1; then
