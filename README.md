@@ -108,6 +108,7 @@ clean slate.
 | `f` | files | a filename, Enter to open |
 | `i` | install | a package name; pick a result, Enter to install |
 | `r` | remove | an installed package; pick a result, Enter to uninstall |
+| `?` | help | the command list; Enter opens the highlighted command |
 
 - Tab with a matching letter enters the command; Tab again leaves it.
 - Escape clears the argument, then leaves the command, then closes the menu.
@@ -190,7 +191,8 @@ Placeholders in `action`:
 
 `"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
 The menu is double-wide so longer filenames and paths stay readable.
-`"kind": "web"` lists aliases, opens a URL, or falls back to the configured search provider.
+`"kind": "help"` lists every enabled command (`? Tab`). Enter on a row
+opens that command. `"kind": "web"` lists aliases, opens a URL, or falls back to the configured search provider.
 Top-level `"aliases"` (or `"aliases"` on the web command) maps names to URLs.
 `"kind": "packages"` searches Arch, the Omarchy repo, and the AUR, then
 installs the selected package (`omarchy pkg add` or `omarchy pkg aur add`).

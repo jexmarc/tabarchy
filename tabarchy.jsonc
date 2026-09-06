@@ -14,6 +14,7 @@
   //
   // "aliases" are shortcuts for w Tab. Type a name to open that URL.
   // Set a name to false to drop a default. https:// is added if omitted.
+  // kind "help" lists every enabled command. Default letter is ?.
 
   "m": {
     "name": "maps",
@@ -46,6 +47,11 @@
     "icon": "󰆴",
     "placeholder": "package",
     "kind": "remove-packages"
+  },
+  "?": {
+    "name": "help",
+    "icon": "󰋖",
+    "kind": "help"
   },
 
   "aliases": {

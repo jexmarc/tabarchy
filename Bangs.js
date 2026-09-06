@@ -256,7 +256,7 @@ function normalizeBang(key, raw) {
   if (!value || typeof value !== "object") return null
 
   var kind = String(value.kind || (value.action ? "command" : "")).toLowerCase()
-  if (kind !== "files" && kind !== "command" && kind !== "web" && kind !== "packages" && kind !== "remove-packages") return null
+  if (kind !== "files" && kind !== "command" && kind !== "web" && kind !== "packages" && kind !== "remove-packages" && kind !== "help") return null
   if (kind === "command" && !value.action) return null
 
   var requiresQuery = value.requiresQuery
@@ -270,6 +270,7 @@ function normalizeBang(key, raw) {
     iconFont: String(value.iconFont || ""),
     placeholder: String(value.placeholder || ""),
     label: String(value.label || ""),
+    help: String(value.help || ""),
     kind: kind,
     action: String(value.action || ""),
     requiresQuery: !!requiresQuery
@@ -308,6 +309,7 @@ function defaults() {
       iconFont: "",
       placeholder: "address",
       label: "Google Maps",
+      help: "open an address in Google Maps",
       kind: "command",
       requiresQuery: false,
       action: "omarchy-launch-browser \"https://www.google.com/maps/search/?api=1&query={{query_encoded}}\""
@@ -319,6 +321,7 @@ function defaults() {
       iconFont: "",
       placeholder: "url, search, or alias",
       label: "Open URL or search",
+      help: "URL, alias, or web search",
       kind: "web",
       requiresQuery: true,
       action: ""
@@ -330,6 +333,7 @@ function defaults() {
       iconFont: "",
       placeholder: "filename",
       label: "Files",
+      help: "find and open a file",
       kind: "files",
       requiresQuery: true,
       action: ""
@@ -341,6 +345,7 @@ function defaults() {
       iconFont: "",
       placeholder: "package",
       label: "Install package",
+      help: "search and install a package",
       kind: "packages",
       requiresQuery: true,
       action: ""
@@ -352,11 +357,61 @@ function defaults() {
       iconFont: "",
       placeholder: "package",
       label: "Remove package",
+      help: "search and uninstall a package",
       kind: "remove-packages",
       requiresQuery: true,
       action: ""
+    },
+    "?": {
+      key: "?",
+      name: "help",
+      icon: "󰋖",
+      iconFont: "",
+      placeholder: "",
+      label: "Commands",
+      help: "this list",
+      kind: "help",
+      requiresQuery: false,
+      action: ""
     }
   }
+}
+
+function bangHelpText(bang) {
+  if (!bang) return ""
+  if (bang.help) return bang.help
+  if (bang.key === "m") return "open an address in Google Maps"
+  if (bang.kind === "web") return "URL, alias, or web search"
+  if (bang.kind === "files") return "find and open a file"
+  if (bang.kind === "packages") return "search and install a package"
+  if (bang.kind === "remove-packages") return "search and uninstall a package"
+  if (bang.kind === "help") return "this list"
+  if (bang.placeholder) return bang.placeholder
+  return bang.label || bang.name || ""
+}
+
+function helpKeys(bangs) {
+  var preferred = ["m", "w", "f", "i", "r"]
+  var keys = []
+  var seen = {}
+  var i
+  for (i = 0; i < preferred.length; i++) {
+    var pref = preferred[i]
+    if (bangs && bangs[pref] && !bangs[pref].disabled) {
+      keys.push(pref)
+      seen[pref] = true
+    }
+  }
+  var extra = []
+  for (var key in bangs) {
+    if (!Object.prototype.hasOwnProperty.call(bangs, key)) continue
+    if (seen[key] || key === "?" || (bangs[key] && bangs[key].disabled)) continue
+    extra.push(key)
+  }
+  extra.sort()
+  keys = keys.concat(extra)
+  if (bangs && bangs["?"] && !bangs["?"].disabled) keys.push("?")
+  return keys
 }
 
 function mergeBangs(base, overlay) {

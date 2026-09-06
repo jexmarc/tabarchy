@@ -134,7 +134,7 @@ Item {
   property int layoutSerial: 0
   readonly property bool pkgBang: root.activeBang && (root.activeBang.kind === "packages" || root.activeBang.kind === "remove-packages")
   readonly property bool pkgRemove: root.activeBang && root.activeBang.kind === "remove-packages"
-  readonly property bool wideBang: root.pkgBang || (root.activeBang && (root.activeBang.kind === "files" || root.activeBang.kind === "web"))
+  readonly property bool wideBang: root.pkgBang || (root.activeBang && (root.activeBang.kind === "files" || root.activeBang.kind === "web" || root.activeBang.kind === "help"))
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideBang ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   readonly property bool pkgPane: root.pkgBang
@@ -373,6 +373,27 @@ Item {
     root.rebuildDisplay()
   }
 
+  function bangHelpRow(bang, index) {
+    return {
+      itemId: "bang.help." + bang.key,
+      disabled: false,
+      kind: "bang-help",
+      icon: bang.icon,
+      iconFont: bang.iconFont || "",
+      appIcon: "",
+      appId: "",
+      label: bang.key + "  " + (bang.name || bang.key),
+      target: bang.key,
+      detail: Bangs.bangHelpText(bang),
+      path: "",
+      childCount: bang.kind === "help" ? 0 : 1,
+      action: "",
+      provider: "",
+      score: index,
+      section: ""
+    }
+  }
+
   function bangWebRow(choice, index, bang) {
     var icon = bang.icon
     if (choice.kind === "alias") icon = ""
@@ -468,6 +489,20 @@ Item {
     } else if (bang.kind === "packages" || bang.kind === "remove-packages") {
       for (var p = 0; p < root.bangPkgRows.length; p++)
         displayModel.append(root.bangPkgRow(root.bangPkgRows[p], p))
+    } else if (bang.kind === "help") {
+      var helpQuery = String(root.bangQuery || "").trim().toLowerCase()
+      var keys = Bangs.helpKeys(root.bangs)
+      var shown = 0
+      for (var h = 0; h < keys.length; h++) {
+        var item = root.bangs[keys[h]]
+        if (!item || item.disabled) continue
+        if (helpQuery) {
+          var hay = (item.key + " " + item.name + " " + Bangs.bangHelpText(item)).toLowerCase()
+          if (hay.indexOf(helpQuery) < 0) continue
+        }
+        displayModel.append(root.bangHelpRow(item, shown))
+        shown += 1
+      }
     } else if (bang.kind === "web") {
       var choices = Bangs.webChoices(root.bangQuery, root.webAliases, root.searchProvider, Util.shellQuote)
       if (choices.length === 0) {
@@ -1158,6 +1193,9 @@ Item {
     var row = displayModel.get(index)
     if (row.kind === "bang") {
       root.applySelected(row.itemId, row.action)
+    } else if (row.kind === "bang-help") {
+      var next = root.bangLookup(row.target)
+      if (next && next.kind !== "help") root.enterBang(next)
     } else if (row.kind === "bang-file") {
       applySerial = requestSerial
       opened = false
@@ -1959,9 +1997,9 @@ Item {
 
                 Text {
                   textFormat: Text.PlainText
-                  text: row.kind === "menu" || row.kind === "link" ? "›" : ""
+                  text: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target !== "?") ? "›" : ""
                   color: row.hasCursor ? root.selectedText : root.foreground
-                  opacity: row.kind === "menu" || row.kind === "link" ? 0.36 : 0
+                  opacity: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target !== "?") ? 0.36 : 0
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
                   font.weight: Font.Normal
