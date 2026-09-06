@@ -131,8 +131,8 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
-  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeBang && root.activeBang.kind === "packages") ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
+  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider, selectedIndex, cursorActive)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
@@ -168,6 +168,12 @@ Item {
   // dmenu rows carry caller-supplied subtext that must always be visible.
   function rowHeightForDetail(detail) {
     return (root.filterText || root.dmenuActive || root.activeBang) && detail ? root.detailRowHeight : root.baseRowHeight
+  }
+
+  function rowHeightForKind(kind, index, detail) {
+    if (kind === "bang-pkg" && root.cursorActive && index === root.selectedIndex)
+      return Math.max(root.detailRowHeight, Style.space(108))
+    return root.rowHeightForDetail(detail)
   }
 
   function clearBang() {
@@ -493,7 +499,7 @@ Item {
     return totals[full - 1] + root.rowSpacing + peek
   }
 
-  function rowListHeight(_serial, _count, _filter, _divider) {
+  function rowListHeight(_serial, _count, _filter, _divider, _selected, _cursor) {
     if (displayModel.count === 0) return root.baseRowHeight
 
     var totals = []
@@ -504,7 +510,7 @@ Item {
       var row = displayModel.get(i)
       if (i > 0) total += root.rowSpacing
       if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
-      total += root.rowHeightForDetail(row.detail)
+      total += root.rowHeightForKind(row.kind, i, row.detail)
       previousSection = row.section
       totals.push(total)
     }
@@ -1747,7 +1753,7 @@ Item {
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
 
               width: ListView.view.width
-              height: root.rowHeightForDetail(row.detail)
+              height: root.rowHeightForKind(row.kind, row.index, row.detail)
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
@@ -1829,7 +1835,9 @@ Item {
                   opacity: 0.52
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
-                  elide: Text.ElideRight
+                  wrapMode: row.kind === "bang-pkg" && row.hasCursor ? Text.WordWrap : Text.NoWrap
+                  maximumLineCount: row.kind === "bang-pkg" && row.hasCursor ? 4 : 1
+                  elide: row.kind === "bang-pkg" && row.hasCursor ? Text.ElideNone : Text.ElideRight
                 }
               }
 
