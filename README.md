@@ -107,6 +107,7 @@ clean slate.
 | `w` | web | a URL **or** a search, Enter |
 | `f` | files | a filename, Enter to open |
 | `i` | install | a package name; pick a result, Enter to install |
+| `r` | remove | an installed package; pick a result, Enter to uninstall |
 
 - Tab with a matching letter enters the command; Tab again leaves it.
 - Escape clears the argument, then leaves the command, then closes the menu.
@@ -175,6 +176,8 @@ The menu is double-wide so longer filenames and paths stay readable.
 `"kind": "web"` opens a URL or falls back to the configured search provider.
 `"kind": "packages"` searches Arch, the Omarchy repo, and the AUR, then
 installs the selected package (`omarchy pkg add` or `omarchy pkg aur add`).
+`"kind": "remove-packages"` searches only packages already on the machine,
+then uninstalls the selected name (`omarchy pkg drop`, which is `pacman -Rns`).
 
 `i Tab` does not install whatever you typed. Official matches (core, extra,
 multilib, omarchy) are listed first, then AUR. Already-installed packages stay
@@ -182,6 +185,9 @@ in the list with an accent-colored Installed badge and are skipped when moving
 through results. The menu is double-wide, matching file search. Every result
 stays the same row height, and the highlighted package's description sits in a
 pane under the list. Enter opens a terminal to install the selected name.
+
+`r Tab` is the same list, except it only matches installed packages and Enter
+removes the selected one. Every hit is selectable.
 
 ## Dependencies
 
@@ -191,8 +197,9 @@ Already present on a normal Omarchy install:
 - `wl-paste` — clipboard paste
 - `omarchy-launch-browser` — URLs, maps, and web search
 - `xdg-open` / `uwsm-app` — opening files
-- `python3`, `pacman`, `yay` — package search (`i Tab`)
+- `python3`, `pacman`, `yay` — package search (`i Tab`, `r Tab`)
 - `omarchy-pkg-add` / `omarchy-pkg-aur-add` — install the selected package (may prompt for sudo)
+- `omarchy-pkg-drop` — remove the selected package (`r Tab`, may prompt for sudo)
 
 ## Why this stands in for the Omarchy menu
 

@@ -87,12 +87,12 @@ function normalizeBang(key, raw) {
   if (!value || typeof value !== "object") return null
 
   var kind = String(value.kind || (value.action ? "command" : "")).toLowerCase()
-  if (kind !== "files" && kind !== "command" && kind !== "web" && kind !== "packages") return null
+  if (kind !== "files" && kind !== "command" && kind !== "web" && kind !== "packages" && kind !== "remove-packages") return null
   if (kind === "command" && !value.action) return null
 
   var requiresQuery = value.requiresQuery
   if (requiresQuery === undefined)
-    requiresQuery = kind === "files" || kind === "web" || kind === "packages" || k === "i"
+    requiresQuery = kind === "files" || kind === "web" || kind === "packages" || kind === "remove-packages" || k === "i" || k === "r"
 
   return {
     key: k,
@@ -173,6 +173,17 @@ function defaults() {
       placeholder: "package",
       label: "Install package",
       kind: "packages",
+      requiresQuery: true,
+      action: ""
+    },
+    r: {
+      key: "r",
+      name: "remove",
+      icon: "󰆴",
+      iconFont: "",
+      placeholder: "package",
+      label: "Remove package",
+      kind: "remove-packages",
       requiresQuery: true,
       action: ""
     }

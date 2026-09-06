@@ -131,10 +131,12 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  readonly property bool wideBang: root.activeBang && (root.activeBang.kind === "packages" || root.activeBang.kind === "files")
+  readonly property bool pkgBang: root.activeBang && (root.activeBang.kind === "packages" || root.activeBang.kind === "remove-packages")
+  readonly property bool pkgRemove: root.activeBang && root.activeBang.kind === "remove-packages"
+  readonly property bool wideBang: root.pkgBang || (root.activeBang && root.activeBang.kind === "files")
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideBang ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
-  readonly property bool pkgPane: root.activeBang && root.activeBang.kind === "packages"
+  readonly property bool pkgPane: root.pkgBang
   readonly property bool pkgDetailVisible: root.pkgPane && displayModel.count > 0
   property int pkgDetailHeight: Style.space(72)
   readonly property string selectedPkgDetail: {
@@ -211,10 +213,10 @@ Item {
     root.bangFileRows = []
     root.bangPkgRows = []
     root.selectedIndex = 0
-    root.cursorActive = (bang.kind !== "files" && bang.kind !== "packages") || !!root.bangQuery
+    root.cursorActive = (bang.kind !== "files" && bang.kind !== "packages" && bang.kind !== "remove-packages") || !!root.bangQuery
     root.disarmPointer()
     if (bang.kind === "files") root.scheduleBangFiles()
-    if (bang.kind === "packages") {
+    if (bang.kind === "packages" || bang.kind === "remove-packages") {
       root.bangPkgSearching = root.bangQuery.trim().length >= 2
       root.scheduleBangPackages()
     }
@@ -285,7 +287,7 @@ Item {
     root.cursorActive = true
     root.disarmPointer()
     if (root.activeBang && root.activeBang.kind === "files") root.scheduleBangFiles()
-    if (root.activeBang && root.activeBang.kind === "packages") {
+    if (root.pkgBang) {
       root.bangPkgSearching = nextQuery.trim().length >= 2
       root.scheduleBangPackages()
     }
@@ -294,9 +296,10 @@ Item {
 
   function bangEmptyText() {
     if (!root.activeBang) return ""
-    if (root.activeBang.kind === "packages") {
+    if (root.pkgBang) {
       if (root.bangQuery.trim().length < 2) return "Type at least two characters"
-      if (root.bangPkgSearching) return "Searching Arch, Omarchy, and AUR…"
+      if (root.bangPkgSearching)
+        return root.pkgRemove ? "Searching installed packages…" : "Searching Arch, Omarchy, and AUR…"
     }
     if (root.bangQuery) return "No matches for “" + root.bangQuery + "”"
     if (root.activeBang.placeholder) return "Type " + root.activeBang.placeholder
@@ -342,7 +345,7 @@ Item {
   }
 
   function startBangPackages() {
-    if (!root.activeBang || root.activeBang.kind !== "packages") return
+    if (!root.pkgBang) return
     var query = root.bangQuery.trim()
     var script = root.pluginDir + "/bin/tabarchy-pkg-search"
     if (query.length < 2) {
@@ -362,7 +365,9 @@ Item {
     }
 
     root.bangPkgActiveQuery = query
-    bangPkgProc.command = ["/usr/bin/python3", script, query]
+    bangPkgProc.command = root.pkgRemove
+      ? ["/usr/bin/python3", script, "--installed", query]
+      : ["/usr/bin/python3", script, query]
     bangPkgProc.running = true
     root.rebuildDisplay()
   }
@@ -394,12 +399,17 @@ Item {
     var repo = parts[1] || ""
     var installed = parts[2] === "1"
     var description = parts.slice(3).join("\t")
-    var installer = repo === "aur" ? "omarchy-pkg-aur-add" : "omarchy-pkg-add"
-    var source = repo === "aur" ? "AUR" : (repo === "omarchy" ? "Omarchy" : repo)
-    var detail = source + (description ? " · " + description : "")
+    var removing = root.pkgRemove
+    var command = removing
+      ? "omarchy-pkg-drop"
+      : (repo === "aur" ? "omarchy-pkg-aur-add" : "omarchy-pkg-add")
+    var source = repo === "aur" ? "AUR" : (repo === "omarchy" ? "Omarchy" : (repo === "local" ? "" : repo))
+    var detailParts = []
+    if (source) detailParts.push(source)
+    if (description) detailParts.push(description)
     return {
       itemId: "bang.pkg." + index,
-      disabled: installed,
+      disabled: removing ? false : installed,
       kind: "bang-pkg",
       icon: repo === "aur" ? "" : "󰏖",
       iconFont: "",
@@ -407,11 +417,11 @@ Item {
       appId: "",
       label: name,
       target: "",
-      detail: detail,
+      detail: detailParts.join(" · "),
       path: repo,
       childCount: 0,
-      action: "omarchy-launch-floating-terminal-with-presentation " + installer + " " + Util.shellQuote(name),
-      provider: installed ? "installed" : "",
+      action: "omarchy-launch-floating-terminal-with-presentation " + command + " " + Util.shellQuote(name),
+      provider: (!removing && installed) ? "installed" : "",
       score: index,
       section: ""
     }
@@ -430,7 +440,7 @@ Item {
     if (bang.kind === "files") {
       for (var i = 0; i < root.bangFileRows.length; i++)
         displayModel.append(root.bangFileRow(root.bangFileRows[i], i))
-    } else if (bang.kind === "packages") {
+    } else if (bang.kind === "packages" || bang.kind === "remove-packages") {
       for (var p = 0; p < root.bangPkgRows.length; p++)
         displayModel.append(root.bangPkgRow(root.bangPkgRows[p], p))
     } else {
@@ -1410,7 +1420,7 @@ Item {
         root.bangPkgAborting = false
         return
       }
-      if (!root.activeBang || root.activeBang.kind !== "packages") {
+      if (!root.pkgBang) {
         root.bangPkgSearching = false
         return
       }
@@ -2023,7 +2033,7 @@ Item {
             textFormat: Text.PlainText
             anchors.fill: parent
             anchors.topMargin: Style.space(8)
-            text: root.selectedPkgDetail || (root.bangPkgSearching ? "" : "Select a package to read its description")
+            text: root.selectedPkgDetail || (root.bangPkgSearching ? "" : (root.pkgRemove ? "Select a package to remove" : "Select a package to read its description"))
             color: root.foreground
             opacity: root.selectedPkgDetail ? 0.78 : 0.45
             font.family: root.fontFamily

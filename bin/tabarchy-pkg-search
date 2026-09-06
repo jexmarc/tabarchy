@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Search Arch/Omarchy repos and the AUR. Print TSV: name, repo, installed, description."""
+"""Search packages. Print TSV: name, repo, installed, description.
+
+Default: Arch/Omarchy repos then the AUR.
+--installed: only packages already on this machine.
+"""
 
 import re
 import subprocess
@@ -33,6 +37,7 @@ def parse_search(text):
             continue
         repo = match.group(1)
         name = match.group(2)
+        version = match.group(3)
         rest = match.group(4).lower()
         installed = "installed" in rest
         description = ""
@@ -41,7 +46,7 @@ def parse_search(text):
             i += 2
         else:
             i += 1
-        rows.append((name, repo, installed, description))
+        rows.append((name, repo, installed, description, version))
     return rows
 
 
@@ -68,31 +73,64 @@ def aur_reachable():
         return False
 
 
-def main():
-    query = " ".join(sys.argv[1:]).strip()
-    if len(query) < 2:
-        return 0
+def emit(rows, query):
+    seen = set()
+    merged = []
+    for name, repo, installed, description, version in rows:
+        if name in seen:
+            continue
+        seen.add(name)
+        merged.append((name, repo, installed, description, version))
 
+    merged.sort(key=lambda row: (score(row[0], query), 0 if row[1] != "aur" else 1, row[0].lower()))
+
+    for name, repo, installed, description, version in merged[:MAX_ROWS]:
+        description = description.replace("\t", " ").replace("\n", " ")
+        print("\t".join([name, repo, "1" if installed else "0", description]))
+    return 0
+
+
+def search_installed(query):
+    pattern = re.escape(query)
+    rows = parse_search(run(["pacman", "-Qs", "--color=never", "--", pattern], 6))
+    foreign = set()
+    for name in run(["pacman", "-Qmq"], 4).split():
+        if name:
+            foreign.add(name)
+
+    out = []
+    for name, repo, _installed, description, version in rows:
+        source = "aur" if name in foreign else "local"
+        detail = description
+        if version:
+            detail = version + (" · " + description if description else "")
+        out.append((name, source, True, detail, version))
+    return emit(out, query)
+
+
+def search_available(query):
     pattern = re.escape(query)
     official = parse_search(run(["pacman", "-Ss", "--color=never", "--", pattern], 6))
     aur = []
     if aur_reachable():
         aur = parse_search(run(["yay", "-Ssa", "--color=never", "--", query], 10))
+    return emit(official + aur, query)
 
-    seen = set()
-    merged = []
-    for name, repo, installed, description in official + aur:
-        if name in seen:
-            continue
-        seen.add(name)
-        merged.append((name, repo, installed, description))
 
-    merged.sort(key=lambda row: (score(row[0], query), 0 if row[1] != "aur" else 1, row[0].lower()))
+def main():
+    args = sys.argv[1:]
+    installed_only = False
+    if args and args[0] in ("--installed", "-i"):
+        installed_only = True
+        args = args[1:]
 
-    for name, repo, installed, description in merged[:MAX_ROWS]:
-        description = description.replace("\t", " ").replace("\n", " ")
-        print("\t".join([name, repo, "1" if installed else "0", description]))
-    return 0
+    query = " ".join(args).strip()
+    if len(query) < 2:
+        return 0
+
+    if installed_only:
+        return search_installed(query)
+    return search_available(query)
 
 
 if __name__ == "__main__":

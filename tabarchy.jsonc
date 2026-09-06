@@ -9,7 +9,8 @@
   //   {{url}}            https:// prepended if the query has no scheme, quoted
   //
   // kind "files" lists matches under your home directory instead of
-  // running a command. kind "packages" searches Arch, Omarchy, and the AUR.
+  // running a command. kind "packages" searches Arch, Omarchy, and the AUR
+  // to install. kind "remove-packages" searches installed packages to remove.
 
   "m": {
     "name": "maps",
@@ -36,5 +37,11 @@
     "icon": "󰏔",
     "placeholder": "package",
     "kind": "packages"
+  },
+  "r": {
+    "name": "remove",
+    "icon": "󰆴",
+    "placeholder": "package",
+    "kind": "remove-packages"
   }
 }
