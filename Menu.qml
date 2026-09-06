@@ -77,8 +77,9 @@ Item {
   property var bangFileRows: []
   property int bangFilesGeneration: 0
   property var bangPkgRows: []
-  property int bangPkgRunId: 0
+  property string bangPkgActiveQuery: ""
   property bool bangPkgSearching: false
+  property bool bangPkgAborting: false
   readonly property string pluginDir: {
     var dir = root.manifest && root.manifest.__sourceDir ? String(root.manifest.__sourceDir) : ""
     if (dir) return dir.replace(/\/$/, "")
@@ -175,8 +176,9 @@ Item {
     root.bangFileRows = []
     root.bangPkgRows = []
     root.bangPkgSearching = false
+    root.bangPkgActiveQuery = ""
+    root.bangPkgAborting = bangPkgProc.running
     root.bangFilesGeneration += 1
-    root.bangPkgRunId += 1
     bangFilesProc.running = false
     bangFilesTimer.stop()
     bangPkgProc.running = false
@@ -331,24 +333,26 @@ Item {
     if (!root.activeBang || root.activeBang.kind !== "packages") return
     var query = root.bangQuery.trim()
     var script = root.pluginDir + "/bin/tabarchy-pkg-search"
-    bangPkgProc.running = false
-    root.bangPkgRunId += 1
-    var runId = root.bangPkgRunId
     if (query.length < 2) {
+      root.bangPkgAborting = bangPkgProc.running
+      bangPkgProc.running = false
       root.bangPkgSearching = false
+      root.bangPkgActiveQuery = ""
       root.bangPkgRows = []
       root.rebuildDisplay()
       return
     }
 
     root.bangPkgSearching = true
+    if (bangPkgProc.running) {
+      root.rebuildDisplay()
+      return
+    }
+
+    root.bangPkgActiveQuery = query
+    bangPkgProc.command = ["/usr/bin/python3", script, query]
+    bangPkgProc.running = true
     root.rebuildDisplay()
-    Qt.callLater(function() {
-      if (runId !== root.bangPkgRunId) return
-      bangPkgProc.runId = runId
-      bangPkgProc.command = ["/usr/bin/python3", script, query]
-      bangPkgProc.running = true
-    })
   }
 
   function bangFileRow(path, index) {
@@ -1381,7 +1385,6 @@ Item {
 
   Process {
     id: bangPkgProc
-    property int runId: 0
     stdout: StdioCollector {
       id: bangPkgOut
       waitForEnd: true
@@ -1391,8 +1394,27 @@ Item {
       waitForEnd: true
     }
     onExited: function(exitCode) {
-      if (bangPkgProc.runId !== root.bangPkgRunId) return
-      if (!root.activeBang || root.activeBang.kind !== "packages") return
+      if (root.bangPkgAborting) {
+        root.bangPkgAborting = false
+        return
+      }
+      if (!root.activeBang || root.activeBang.kind !== "packages") {
+        root.bangPkgSearching = false
+        return
+      }
+      var current = root.bangQuery.trim()
+      if (current.length < 2) {
+        root.bangPkgSearching = false
+        root.bangPkgActiveQuery = ""
+        root.bangPkgRows = []
+        root.rebuildDisplay()
+        return
+      }
+      if (root.bangPkgActiveQuery !== current) {
+        root.bangPkgSearching = true
+        root.startBangPackages()
+        return
+      }
       root.bangPkgSearching = false
       var text = bangPkgOut.text || ""
       var rows = []

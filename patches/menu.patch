@@ -11,7 +11,7 @@
  
  Item {
    id: root
-@@ -64,6 +68,24 @@
+@@ -64,6 +68,25 @@
    property bool rowsLoaded: false
    property string activeMenu: "root"
    property string filterText: ""
@@ -24,8 +24,9 @@
 +  property var bangFileRows: []
 +  property int bangFilesGeneration: 0
 +  property var bangPkgRows: []
-+  property int bangPkgRunId: 0
++  property string bangPkgActiveQuery: ""
 +  property bool bangPkgSearching: false
++  property bool bangPkgAborting: false
 +  readonly property string pluginDir: {
 +    var dir = root.manifest && root.manifest.__sourceDir ? String(root.manifest.__sourceDir) : ""
 +    if (dir) return dir.replace(/\/$/, "")
@@ -36,7 +37,7 @@
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -144,7 +166,296 @@
+@@ -144,7 +167,299 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
@@ -50,8 +51,9 @@
 +    root.bangFileRows = []
 +    root.bangPkgRows = []
 +    root.bangPkgSearching = false
++    root.bangPkgActiveQuery = ""
++    root.bangPkgAborting = bangPkgProc.running
 +    root.bangFilesGeneration += 1
-+    root.bangPkgRunId += 1
 +    bangFilesProc.running = false
 +    bangFilesTimer.stop()
 +    bangPkgProc.running = false
@@ -206,24 +208,26 @@
 +    if (!root.activeBang || root.activeBang.kind !== "packages") return
 +    var query = root.bangQuery.trim()
 +    var script = root.pluginDir + "/bin/tabarchy-pkg-search"
-+    bangPkgProc.running = false
-+    root.bangPkgRunId += 1
-+    var runId = root.bangPkgRunId
 +    if (query.length < 2) {
++      root.bangPkgAborting = bangPkgProc.running
++      bangPkgProc.running = false
 +      root.bangPkgSearching = false
++      root.bangPkgActiveQuery = ""
 +      root.bangPkgRows = []
 +      root.rebuildDisplay()
 +      return
 +    }
 +
 +    root.bangPkgSearching = true
++    if (bangPkgProc.running) {
++      root.rebuildDisplay()
++      return
++    }
++
++    root.bangPkgActiveQuery = query
++    bangPkgProc.command = ["/usr/bin/python3", script, query]
++    bangPkgProc.running = true
 +    root.rebuildDisplay()
-+    Qt.callLater(function() {
-+      if (runId !== root.bangPkgRunId) return
-+      bangPkgProc.runId = runId
-+      bangPkgProc.command = ["/usr/bin/python3", script, query]
-+      bangPkgProc.running = true
-+    })
 +  }
 +
 +  function bangFileRow(path, index) {
@@ -334,7 +338,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -607,6 +918,10 @@
+@@ -607,6 +922,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -345,7 +349,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1046,7 @@
+@@ -731,6 +1050,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -353,7 +357,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -772,7 +1088,17 @@
+@@ -772,7 +1092,17 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -372,7 +376,7 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -824,6 +1150,7 @@
+@@ -824,6 +1154,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -380,7 +384,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1158,7 @@
+@@ -831,6 +1162,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -388,7 +392,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1170,7 @@
+@@ -842,6 +1174,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -396,7 +400,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1199,7 @@
+@@ -870,6 +1203,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -404,7 +408,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1311,103 @@
+@@ -981,6 +1315,121 @@
      onFileChanged: reload()
    }
  
@@ -478,7 +482,6 @@
 +
 +  Process {
 +    id: bangPkgProc
-+    property int runId: 0
 +    stdout: StdioCollector {
 +      id: bangPkgOut
 +      waitForEnd: true
@@ -488,8 +491,27 @@
 +      waitForEnd: true
 +    }
 +    onExited: function(exitCode) {
-+      if (bangPkgProc.runId !== root.bangPkgRunId) return
-+      if (!root.activeBang || root.activeBang.kind !== "packages") return
++      if (root.bangPkgAborting) {
++        root.bangPkgAborting = false
++        return
++      }
++      if (!root.activeBang || root.activeBang.kind !== "packages") {
++        root.bangPkgSearching = false
++        return
++      }
++      var current = root.bangQuery.trim()
++      if (current.length < 2) {
++        root.bangPkgSearching = false
++        root.bangPkgActiveQuery = ""
++        root.bangPkgRows = []
++        root.rebuildDisplay()
++        return
++      }
++      if (root.bangPkgActiveQuery !== current) {
++        root.bangPkgSearching = true
++        root.startBangPackages()
++        return
++      }
 +      root.bangPkgSearching = false
 +      var text = bangPkgOut.text || ""
 +      var rows = []
@@ -508,7 +530,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1130,19 +1557,34 @@
+@@ -1130,19 +1579,34 @@
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -547,7 +569,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +1597,14 @@
+@@ -1155,11 +1619,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -563,7 +585,7 @@
              event.accepted = true
            }
          }
-@@ -1201,16 +1646,28 @@
+@@ -1201,16 +1668,28 @@
            Text {
              textFormat: Text.PlainText
              anchors.left: parent.left
@@ -595,7 +617,7 @@
          }
  
          Item {
-@@ -1224,6 +1681,7 @@
+@@ -1224,6 +1703,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -603,7 +625,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1344,7 +1802,7 @@
+@@ -1344,7 +1824,7 @@
                    textFormat: Text.PlainText
                    width: parent.width
                    text: row.detail
@@ -612,7 +634,7 @@
                    color: root.foreground
                    opacity: 0.52
                    font.family: root.fontFamily
-@@ -1447,7 +1905,17 @@
+@@ -1447,7 +1927,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -630,7 +652,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +1927,7 @@
+@@ -1459,7 +1949,7 @@
  
              Text {
                textFormat: Text.PlainText
