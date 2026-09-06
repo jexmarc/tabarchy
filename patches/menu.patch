@@ -37,12 +37,13 @@
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -108,11 +131,22 @@
+@@ -108,11 +131,23 @@
    property int dividerHeight: Style.space(17)
    property bool searchDivider: false
    property int layoutSerial: 0
 -  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
-+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeBang && root.activeBang.kind === "packages") ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
++  readonly property bool wideBang: root.activeBang && (root.activeBang.kind === "packages" || root.activeBang.kind === "files")
++  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideBang ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
    property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
 +  readonly property bool pkgPane: root.activeBang && root.activeBang.kind === "packages"
 +  readonly property bool pkgDetailVisible: root.pkgPane && displayModel.count > 0
@@ -62,7 +63,7 @@
  
    function finishRequest(selection) {
      if (!root.requestActive || !root.doneFile) {
-@@ -144,7 +178,299 @@
+@@ -144,7 +179,299 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
@@ -363,7 +364,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -607,6 +933,10 @@
+@@ -607,6 +934,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -374,7 +375,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1061,7 @@
+@@ -731,6 +1062,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -382,7 +383,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -772,7 +1103,17 @@
+@@ -772,7 +1104,17 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -401,7 +402,7 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -824,6 +1165,7 @@
+@@ -824,6 +1166,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -409,7 +410,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1173,7 @@
+@@ -831,6 +1174,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -417,7 +418,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1185,7 @@
+@@ -842,6 +1186,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -425,7 +426,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1214,7 @@
+@@ -870,6 +1215,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -433,7 +434,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1326,121 @@
+@@ -981,6 +1327,121 @@
      onFileChanged: reload()
    }
  
@@ -555,7 +556,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1130,19 +1590,34 @@
+@@ -1130,19 +1591,34 @@
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -594,7 +595,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +1630,14 @@
+@@ -1155,11 +1631,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -610,7 +611,7 @@
              event.accepted = true
            }
          }
-@@ -1201,16 +1679,28 @@
+@@ -1201,16 +1680,28 @@
            Text {
              textFormat: Text.PlainText
              anchors.left: parent.left
@@ -642,7 +643,7 @@
          }
  
          Item {
-@@ -1224,6 +1714,7 @@
+@@ -1224,6 +1715,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -650,7 +651,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1344,11 +1835,13 @@
+@@ -1344,11 +1836,13 @@
                    textFormat: Text.PlainText
                    width: parent.width
                    text: row.detail
@@ -665,7 +666,7 @@
                    elide: Text.ElideRight
                  }
                }
-@@ -1447,7 +1940,17 @@
+@@ -1447,7 +1941,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -683,7 +684,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +1962,7 @@
+@@ -1459,7 +1963,7 @@
  
              Text {
                textFormat: Text.PlainText
@@ -692,7 +693,7 @@
                color: root.foreground
                opacity: 0.7
                font.family: root.fontFamily
-@@ -1470,6 +1973,35 @@
+@@ -1470,6 +1974,35 @@
            }
          }
  

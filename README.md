@@ -171,15 +171,16 @@ Placeholders in `action`:
 | `{{url}}` | `https://` prepended if there is no scheme, quoted |
 
 `"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
+The menu is double-wide so longer filenames and paths stay readable.
 `"kind": "web"` opens a URL or falls back to the configured search provider.
 `"kind": "packages"` searches Arch, the Omarchy repo, and the AUR, then
 installs the selected package (`omarchy pkg add` or `omarchy pkg aur add`).
 
 `i Tab` does not install whatever you typed. Official matches (core, extra,
 multilib, omarchy) are listed first, then AUR. Already-installed packages are
-marked. The menu is double-wide; every result stays the same row height, and
-the highlighted package's description sits in a pane under the list. Enter
-opens a terminal to install the selected name.
+marked. The menu is double-wide, matching file search. Every result stays the same
+row height, and the highlighted package's description sits in a pane under
+the list. Enter opens a terminal to install the selected name.
 
 ## Dependencies
 

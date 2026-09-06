@@ -131,7 +131,8 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeBang && root.activeBang.kind === "packages") ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
+  readonly property bool wideBang: root.activeBang && (root.activeBang.kind === "packages" || root.activeBang.kind === "files")
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideBang ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   readonly property bool pkgPane: root.activeBang && root.activeBang.kind === "packages"
   readonly property bool pkgDetailVisible: root.pkgPane && displayModel.count > 0
