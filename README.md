@@ -32,19 +32,72 @@ omarchy plugin add /path/to/tabarchy --enable
 ```
 
 Enabling Tabarchy stands in for the stock Omarchy menu so Super+Space, the bar
-icon, and `omarchy menu` keep working. Disable or remove it to get the stock
-menu back:
-
-```bash
-omarchy plugin disable io.github.jexmarc.tabarchy
-omarchy plugin remove io.github.jexmarc.tabarchy
-```
+icon, and `omarchy menu` keep working. This is reversible. Omarchy still has
+the original menu; Tabarchy just sits in front of it. See [Restore the stock
+menu](#restore-the-stock-menu) if you want it back.
 
 If you previously installed the un-namespaced `tabarchy` id, remove that first:
 
 ```bash
 omarchy plugin remove tabarchy --yes
 ```
+
+## Restore the stock menu
+
+Tabarchy does not delete or overwrite Omarchy's menu. The first-party
+`omarchy.menu` plugin stays on the machine the whole time. While Tabarchy is
+enabled, Omarchy routes Super+Space, the bar icon, and `omarchy menu` to
+Tabarchy. When Tabarchy is off, those same bindings go back to the original
+menu.
+
+You can check at any time:
+
+```bash
+omarchy plugin list
+```
+
+With Tabarchy on you should see Tabarchy **enabled** and `omarchy.menu`
+**disabled**. That disabled line is the stock menu, waiting to be restored.
+
+### Turn Tabarchy off, keep the files
+
+```bash
+omarchy plugin disable io.github.jexmarc.tabarchy
+```
+
+Omarchy re-enables `omarchy.menu`. Super+Space is the stock menu again. The
+Tabarchy checkout stays under `~/.config/omarchy/plugins/` so you can turn it
+back on later:
+
+```bash
+omarchy plugin enable io.github.jexmarc.tabarchy
+```
+
+### Uninstall Tabarchy
+
+```bash
+omarchy plugin remove io.github.jexmarc.tabarchy
+```
+
+The CLI disables Tabarchy first, prints `Restored omarchy.menu.`, then deletes
+the plugin checkout. Super+Space, the bar icon, and `omarchy menu` are the
+stock Omarchy menu again. No Omarchy restart is required.
+
+That also removes the `~/.local/bin/omarchy-tabarchy-search` symlink Tabarchy
+created.
+
+### What is left on disk
+
+These are your files. Tabarchy does not create them unless you did, and
+removal does not delete them:
+
+```
+~/.config/omarchy/tabarchy.jsonc      # optional bang overrides
+~/.config/omarchy/defaults/search     # search provider, if you set one
+```
+
+They have no effect while Tabarchy is gone. Delete them by hand if you want a
+clean slate.
 
 ## Use
 
@@ -133,8 +186,8 @@ Already present on a normal Omarchy install:
 Omarchy's Super+Space menu is `omarchy.menu`. It has no prefix/Tab API, so a
 third-party plugin cannot intercept one letter plus Tab without standing in for
 that menu. Tabarchy therefore sets `clonedFrom: omarchy.menu`: Super+Space,
-`omarchy menu`, and the bar icon keep working, and disabling Tabarchy restores
-the stock menu.
+`omarchy menu`, and the bar icon keep working. The stock menu is not removed;
+see [Restore the stock menu](#restore-the-stock-menu).
 
 That is a stand-in, not a second launcher. Tabarchy-specific code is `Bangs.js`,
 `Cli.qml`, `bin/omarchy-tabarchy-search`, and `patches/menu.patch`.
