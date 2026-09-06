@@ -1201,7 +1201,7 @@ Item {
       opened = false
       root.clearBang()
       filterText = ""
-      Util.execArgv(["uwsm-app", "--", "xdg-open", row.action])
+      Util.execArgv([root.pluginDir + "/bin/tabarchy-open", row.action])
     } else if (row.kind === "bang-pkg") {
       root.applySelected(row.itemId, row.action)
     } else if (row.kind === "menu" || row.kind === "link") {

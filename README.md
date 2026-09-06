@@ -191,6 +191,9 @@ Placeholders in `action`:
 
 `"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
 The menu is double-wide so longer filenames and paths stay readable.
+Enter uses a GUI app when one is registered; markdown and other text open
+in the Omarchy editor (`nvim` in a terminal by default) because `xdg-open`
+cannot attach a terminal from this overlay.
 `"kind": "help"` lists every enabled command (`? Tab`). Enter on a row
 opens that command. `"kind": "web"` lists aliases, opens a URL, or falls back to the configured search provider.
 Top-level `"aliases"` (or `"aliases"` on the web command) maps names to URLs.
@@ -216,7 +219,8 @@ Already present on a normal Omarchy install:
 - `fd` — file search (`f Tab`)
 - `wl-paste` — clipboard paste
 - `omarchy-launch-browser` — URLs, maps, and web search
-- `xdg-open` / `uwsm-app` — opening files
+- `xdg-open` / `uwsm-app` — opening files that have a GUI handler
+- `omarchy-launch-editor` — markdown, source, and other text when `xdg-open` would launch a terminal editor with no terminal
 - `python3`, `pacman`, `yay` — package search (`i Tab`, `r Tab`)
 - `omarchy-pkg-add` / `omarchy-pkg-aur-add` — install the selected package (may prompt for sudo)
 - `omarchy-pkg-drop` — remove the selected package (`r Tab`, may prompt for sudo)
