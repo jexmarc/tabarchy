@@ -285,10 +285,10 @@
 +    var description = parts.slice(3).join("\t")
 +    var installer = repo === "aur" ? "omarchy-pkg-aur-add" : "omarchy-pkg-add"
 +    var source = repo === "aur" ? "AUR" : (repo === "omarchy" ? "Omarchy" : repo)
-+    var detail = source + (installed ? " · installed" : "") + (description ? " · " + description : "")
++    var detail = source + (description ? " · " + description : "")
 +    return {
 +      itemId: "bang.pkg." + index,
-+      disabled: false,
++      disabled: installed,
 +      kind: "bang-pkg",
 +      icon: repo === "aur" ? "" : "󰏖",
 +      iconFont: "",
@@ -300,7 +300,7 @@
 +      path: repo,
 +      childCount: 0,
 +      action: "omarchy-launch-floating-terminal-with-presentation " + installer + " " + Util.shellQuote(name),
-+      provider: "",
++      provider: installed ? "installed" : "",
 +      score: index,
 +      section: ""
 +    }
@@ -651,7 +651,100 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1344,11 +1836,13 @@
+@@ -1261,16 +1753,19 @@
+               required property string action
+               required property int childCount
+               required property bool disabled
++              required property string provider
+ 
+               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
+               readonly property bool isApp: row.kind === "app"
+               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
++              readonly property bool pkgInstalled: row.kind === "bang-pkg" && row.provider === "installed"
+ 
+               width: ListView.view.width
+               height: root.rowHeightForDetail(row.detail)
+               // Faded: the row is here to say the software is already
+-              // installed, not to be picked.
+-              opacity: row.disabled ? 0.4 : 1
++              // installed, not to be picked. Package hits keep full opacity
++              // so the Installed badge stays readable; navigation skips them.
++              opacity: row.disabled && !row.pkgInstalled ? 0.4 : 1
+               radius: root.cornerRadius
+               color: row.hasCursor ? root.selectedBackground : "transparent"
+               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
+@@ -1299,7 +1794,7 @@
+                 verticalAlignment: Text.AlignVCenter
+                 anchors.left: parent.left
+                 anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8)
+-                y: contentColumn.y + labelText.y + (labelText.height - height) / 2
++                y: contentColumn.y + labelRow.y + (labelRow.height - height) / 2
+               }
+ 
+               Image {
+@@ -1316,7 +1811,7 @@
+                 asynchronous: true
+                 anchors.left: parent.left
+                 anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
+-                y: contentColumn.y + labelText.y + (labelText.height - height) / 2
++                y: contentColumn.y + labelRow.y + (labelRow.height - height) / 2
+               }
+ 
+               Column {
+@@ -1328,27 +1823,57 @@
+                 anchors.verticalCenter: parent.verticalCenter
+                 spacing: Style.space(3)
+ 
+-                Text {
+-                  id: labelText
+-                  textFormat: Text.PlainText
++                Row {
++                  id: labelRow
+                   width: parent.width
+-                  text: row.label
+-                  color: row.hasCursor ? root.selectedText : root.foreground
+-                  font.family: root.fontFamily
+-                  font.pixelSize: Style.font.heading
+-                  font.weight: Font.Medium
+-                  elide: Text.ElideRight
++                  spacing: Style.space(8)
++
++                  Text {
++                    id: labelText
++                    textFormat: Text.PlainText
++                    width: parent.width - (installedBadge.visible ? installedBadge.width + parent.spacing : 0)
++                    text: row.label
++                    color: row.hasCursor ? root.selectedText : root.foreground
++                    opacity: row.pkgInstalled ? 0.72 : 1
++                    font.family: root.fontFamily
++                    font.pixelSize: Style.font.heading
++                    font.weight: Font.Medium
++                    elide: Text.ElideRight
++                  }
++
++                  Rectangle {
++                    id: installedBadge
++                    visible: row.pkgInstalled
++                    width: badgeLabel.implicitWidth + Style.space(10)
++                    height: Math.max(badgeLabel.implicitHeight + Style.space(4), Style.space(16))
++                    radius: Math.round(height / 2)
++                    color: Color.accent
++                    anchors.verticalCenter: parent.verticalCenter
++
++                    Text {
++                      id: badgeLabel
++                      anchors.centerIn: parent
++                      textFormat: Text.PlainText
++                      text: "installed"
++                      color: root.background
++                      font.family: root.fontFamily
++                      font.pixelSize: Style.font.caption
++                      font.weight: Font.Medium
++                    }
++                  }
+                 }
+ 
+                 Text {
                    textFormat: Text.PlainText
                    width: parent.width
                    text: row.detail
@@ -666,7 +759,16 @@
                    elide: Text.ElideRight
                  }
                }
-@@ -1447,7 +1941,17 @@
+@@ -1358,7 +1883,7 @@
+                 width: Style.space(14)
+                 anchors.right: parent.right
+                 anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
+-                y: contentColumn.y + labelText.y + (labelText.height - height) / 2
++                y: contentColumn.y + labelRow.y + (labelRow.height - height) / 2
+                 spacing: 0
+ 
+                 Text {
+@@ -1447,7 +1972,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -684,7 +786,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +1963,7 @@
+@@ -1459,7 +1994,7 @@
  
              Text {
                textFormat: Text.PlainText
@@ -693,7 +795,7 @@
                color: root.foreground
                opacity: 0.7
                font.family: root.fontFamily
-@@ -1470,6 +1974,35 @@
+@@ -1470,6 +2005,35 @@
            }
          }
  
