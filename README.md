@@ -119,8 +119,8 @@ clean slate.
 Two or more characters never trigger a command, so `ma` still searches the menu.
 
 `w Tab` lists matching aliases as you type, then a URL or a search. Enter
-opens the highlighted row. Defaults include `amazon` → amazon.com and
-`discord` → discord.com. Type `amazon.com` or `https://…` to open a URL
+opens the highlighted row. Defaults include `amazon` → amazon.com,
+`discord` → discord.com, and `gh` → github.com. Type `amazon.com` or `https://…` to open a URL
 directly. Anything else is a web search. The default provider is Google.
 
 Aliases live in `~/.config/omarchy/tabarchy.jsonc` (watched live):
