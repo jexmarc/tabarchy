@@ -87,11 +87,12 @@ function normalizeBang(key, raw) {
   if (!value || typeof value !== "object") return null
 
   var kind = String(value.kind || (value.action ? "command" : "")).toLowerCase()
-  if (kind !== "files" && kind !== "command" && kind !== "web") return null
+  if (kind !== "files" && kind !== "command" && kind !== "web" && kind !== "packages") return null
   if (kind === "command" && !value.action) return null
 
   var requiresQuery = value.requiresQuery
-  if (requiresQuery === undefined) requiresQuery = kind === "files" || kind === "web" || k === "i"
+  if (requiresQuery === undefined)
+    requiresQuery = kind === "files" || kind === "web" || kind === "packages" || k === "i"
 
   return {
     key: k,
@@ -171,9 +172,9 @@ function defaults() {
       iconFont: "",
       placeholder: "package",
       label: "Install package",
-      kind: "command",
+      kind: "packages",
       requiresQuery: true,
-      action: "omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add {{query}}"
+      action: ""
     }
   }
 }

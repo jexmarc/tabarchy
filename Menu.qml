@@ -76,6 +76,12 @@ Item {
   property string bangStashQuery: ""
   property var bangFileRows: []
   property int bangFilesGeneration: 0
+  property var bangPkgRows: []
+  property int bangPkgGeneration: 0
+  readonly property string pluginDir: {
+    var dir = root.manifest && root.manifest.__sourceDir ? String(root.manifest.__sourceDir) : ""
+    return dir.replace(/\/$/, "")
+  }
   property int selectedIndex: 0
   property bool cursorActive: false
   property int requestSerial: 0
@@ -163,9 +169,13 @@ Item {
     root.activeBang = null
     root.bangQuery = ""
     root.bangFileRows = []
+    root.bangPkgRows = []
     root.bangFilesGeneration += 1
+    root.bangPkgGeneration += 1
     bangFilesProc.running = false
     bangFilesTimer.stop()
+    bangPkgProc.running = false
+    bangPkgTimer.stop()
   }
 
   function bangLookup(letter) {
@@ -180,10 +190,12 @@ Item {
     root.bangQuery = (root.bangStashKey === bang.key) ? root.bangStashQuery : ""
     root.filterText = ""
     root.bangFileRows = []
+    root.bangPkgRows = []
     root.selectedIndex = 0
-    root.cursorActive = bang.kind !== "files" || !!root.bangQuery
+    root.cursorActive = (bang.kind !== "files" && bang.kind !== "packages") || !!root.bangQuery
     root.disarmPointer()
     if (bang.kind === "files") root.scheduleBangFiles()
+    if (bang.kind === "packages") root.scheduleBangPackages()
     root.rebuildDisplay()
   }
 
@@ -243,11 +255,14 @@ Item {
     root.cursorActive = true
     root.disarmPointer()
     if (root.activeBang && root.activeBang.kind === "files") root.scheduleBangFiles()
+    if (root.activeBang && root.activeBang.kind === "packages") root.scheduleBangPackages()
     root.rebuildDisplay()
   }
 
   function bangEmptyText() {
     if (!root.activeBang) return ""
+    if (root.activeBang.kind === "packages" && root.bangQuery.trim().length === 1)
+      return "Type at least two characters"
     if (root.bangQuery) return "No matches for “" + root.bangQuery + "”"
     if (root.activeBang.placeholder) return "Type " + root.activeBang.placeholder
     return "Type to continue"
@@ -264,6 +279,10 @@ Item {
 
   function scheduleBangFiles() {
     bangFilesTimer.restart()
+  }
+
+  function scheduleBangPackages() {
+    bangPkgTimer.restart()
   }
 
   function startBangFiles() {
@@ -287,6 +306,23 @@ Item {
     bangFilesProc.running = true
   }
 
+  function startBangPackages() {
+    if (!root.activeBang || root.activeBang.kind !== "packages") return
+    var query = root.bangQuery.trim()
+    root.bangPkgGeneration += 1
+    bangPkgProc.running = false
+    if (query.length < 2 || !root.pluginDir) {
+      root.bangPkgRows = []
+      root.rebuildDisplay()
+      return
+    }
+
+    bangPkgProc.generation = root.bangPkgGeneration
+    bangPkgProc.collected = ""
+    bangPkgProc.command = [root.pluginDir + "/bin/tabarchy-pkg-search", query]
+    bangPkgProc.running = true
+  }
+
   function bangFileRow(path, index) {
     return {
       itemId: "bang.file." + index,
@@ -308,6 +344,35 @@ Item {
     }
   }
 
+  function bangPkgRow(line, index) {
+    var parts = String(line || "").split("\t")
+    var name = parts[0] || ""
+    var repo = parts[1] || ""
+    var installed = parts[2] === "1"
+    var description = parts.slice(3).join("\t")
+    var installer = repo === "aur" ? "omarchy-pkg-aur-add" : "omarchy-pkg-add"
+    var source = repo === "aur" ? "AUR" : (repo === "omarchy" ? "Omarchy" : repo)
+    var detail = source + (installed ? " · installed" : "") + (description ? " · " + description : "")
+    return {
+      itemId: "bang.pkg." + index,
+      disabled: false,
+      kind: "bang-pkg",
+      icon: repo === "aur" ? "" : "󰏖",
+      iconFont: "",
+      appIcon: "",
+      appId: "",
+      label: name,
+      target: "",
+      detail: detail,
+      path: repo,
+      childCount: 0,
+      action: "omarchy-launch-floating-terminal-with-presentation " + installer + " " + Util.shellQuote(name),
+      provider: "",
+      score: index,
+      section: ""
+    }
+  }
+
   function rebuildBangDisplay() {
     displayModel.clear()
     root.searchDivider = false
@@ -321,6 +386,9 @@ Item {
     if (bang.kind === "files") {
       for (var i = 0; i < root.bangFileRows.length; i++)
         displayModel.append(root.bangFileRow(root.bangFileRows[i], i))
+    } else if (bang.kind === "packages") {
+      for (var p = 0; p < root.bangPkgRows.length; p++)
+        displayModel.append(root.bangPkgRow(root.bangPkgRows[p], p))
     } else {
       var query = root.bangQuery
       var missing = bang.requiresQuery && !String(query).trim()
@@ -1000,6 +1068,8 @@ Item {
       root.clearBang()
       filterText = ""
       Util.execArgv(["uwsm-app", "--", "xdg-open", row.action])
+    } else if (row.kind === "bang-pkg") {
+      root.applySelected(row.itemId, row.action)
     } else if (row.kind === "menu" || row.kind === "link") {
       root.setActiveMenu(row.target || row.itemId, true, fromPointer)
     } else if (row.kind === "app") {
@@ -1245,6 +1315,13 @@ Item {
     onTriggered: root.startBangFiles()
   }
 
+  Timer {
+    id: bangPkgTimer
+    interval: 220
+    repeat: false
+    onTriggered: root.startBangPackages()
+  }
+
   Process {
     id: pasteProc
     stdout: StdioCollector {
@@ -1270,6 +1347,27 @@ Item {
         if (line) rows.push(line)
       }
       root.bangFileRows = rows
+      root.rebuildDisplay()
+    }
+  }
+
+  Process {
+    id: bangPkgProc
+    property string collected: ""
+    property int generation: 0
+    stdout: SplitParser {
+      onRead: function(data) { bangPkgProc.collected += data + "\n" }
+    }
+    onExited: {
+      if (bangPkgProc.generation !== root.bangPkgGeneration) return
+      if (!root.activeBang || root.activeBang.kind !== "packages") return
+      var rows = []
+      var lines = bangPkgProc.collected.split("\n")
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i]
+        if (line) rows.push(line)
+      }
+      root.bangPkgRows = rows
       root.rebuildDisplay()
     }
   }

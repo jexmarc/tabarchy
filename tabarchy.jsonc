@@ -9,7 +9,7 @@
   //   {{url}}            https:// prepended if the query has no scheme, quoted
   //
   // kind "files" lists matches under your home directory instead of
-  // running a command.
+  // running a command. kind "packages" searches Arch, Omarchy, and the AUR.
 
   "m": {
     "name": "maps",
@@ -35,8 +35,6 @@
     "name": "install",
     "icon": "󰏔",
     "placeholder": "package",
-    "label": "Install package",
-    "requiresQuery": true,
-    "action": "omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add {{query}}"
+    "kind": "packages"
   }
 }

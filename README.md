@@ -106,7 +106,7 @@ clean slate.
 | `m` | maps | an address, Enter |
 | `w` | web | a URL **or** a search, Enter |
 | `f` | files | a filename, Enter to open |
-| `i` | install | a package name, Enter |
+| `i` | install | a package name; pick a result, Enter to install |
 
 - Tab with a matching letter enters the command; Tab again leaves it.
 - Escape clears the argument, then leaves the command, then closes the menu.
@@ -170,6 +170,12 @@ Placeholders in `action`:
 
 `"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
 `"kind": "web"` opens a URL or falls back to the configured search provider.
+`"kind": "packages"` searches Arch, the Omarchy repo, and the AUR, then
+installs the selected package (`omarchy pkg add` or `omarchy pkg aur add`).
+
+`i Tab` does not install whatever you typed. Official matches (core, extra,
+multilib, omarchy) are listed first, then AUR. Already-installed packages are
+marked. Enter opens a terminal to install the selected name.
 
 ## Dependencies
 
@@ -179,7 +185,8 @@ Already present on a normal Omarchy install:
 - `wl-paste` — clipboard paste
 - `omarchy-launch-browser` — URLs, maps, and web search
 - `xdg-open` / `uwsm-app` — opening files
-- `omarchy-pkg-add` — `i Tab` (may prompt for sudo)
+- `python3`, `pacman`, `yay` — package search (`i Tab`)
+- `omarchy-pkg-add` / `omarchy-pkg-aur-add` — install the selected package (may prompt for sudo)
 
 ## Why this stands in for the Omarchy menu
 
