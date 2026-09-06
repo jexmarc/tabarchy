@@ -23,7 +23,7 @@
   "entryPoints": {
     "menu": "Menu.qml",
     "barWidget": "BarWidget.qml",
-    "service": "Service.qml"
+    "service": "Cli.qml"
   },
   "barWidget": {
     "displayName": "Tabarchy",
