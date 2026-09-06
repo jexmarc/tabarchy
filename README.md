@@ -1,6 +1,6 @@
 # Tabarchy
 
-<img src="preview-sm.png" width="300" alt="Tabarchy help menu">
+<img src="preview-sm.png" width="500" alt="Tabarchy help menu">
 
 Single-letter Tab commands on Omarchy's Super+Space menu.
 
