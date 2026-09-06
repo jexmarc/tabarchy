@@ -16,26 +16,33 @@ Enter
 opens Google Maps in your default browser. Super+V pastes the clipboard into
 the query (Omarchy's universal paste, which the stock menu ignored).
 
+Plugins run unsandboxed inside the long-lived `omarchy-shell` process, with
+your user permissions. Review the source before you enable it.
+
 ## Install
 
-From this checkout:
-
 ```bash
-omarchy plugin add /home/mgallagher/dev/tabarchy --enable
+omarchy plugin add https://github.com/jexmarc/tabarchy.git --enable
 ```
 
-From git once the repo is on GitHub:
+From a local checkout:
 
 ```bash
-omarchy plugin add https://github.com/<you>/tabarchy.git --enable
+omarchy plugin add /path/to/tabarchy --enable
 ```
 
-Enabling Tabarchy stands in for the stock Omarchy menu. Super+Space, the bar
+Enabling Tabarchy stands in for the stock Omarchy menu so Super+Space, the bar
 icon, and `omarchy menu` keep working. Disable or remove it to get the stock
 menu back:
 
 ```bash
-omarchy plugin disable tabarchy
+omarchy plugin disable io.github.jexmarc.tabarchy
+omarchy plugin remove io.github.jexmarc.tabarchy
+```
+
+If you previously installed the un-namespaced `tabarchy` id, remove that first:
+
+```bash
 omarchy plugin remove tabarchy --yes
 ```
 
@@ -58,10 +65,12 @@ Two or more characters never trigger a command, so `ma` still searches the menu.
 `w Tab` opens a URL when the query looks like one (`amazon.com`, `https://…`).
 Anything else is a web search. The default provider is Google.
 
-Enabling the plugin puts `omarchy-tabarchy-search` on your PATH. The command
-ships in the plugin at `bin/omarchy-tabarchy-search`. The stock `omarchy`
-dispatcher only loads packaged binaries, so this is the plugin CLI rather
-than `omarchy tabarchy search`. The value is stored in
+Enabling the plugin puts `omarchy-tabarchy-search` on your PATH (`~/.local/bin`).
+That symlink is removed when you disable or uninstall Tabarchy. If you already
+had a command with that name, enabling Tabarchy replaces the symlink.
+
+The stock `omarchy` dispatcher only loads packaged binaries, so this is the
+plugin CLI rather than `omarchy tabarchy search`. The value is stored in
 `~/.config/omarchy/defaults/search` and the menu picks it up live.
 
 ```
@@ -75,14 +84,16 @@ omarchy-tabarchy-search 'https://example.com/search?q=%s'
 
 ## Configure
 
-User config, watched live:
+User config, watched live, optional. Without this file the built-in defaults
+still apply:
 
 ```
 ~/.config/omarchy/tabarchy.jsonc
 ```
 
-A starter file ships in this repo as `tabarchy.jsonc`. Set a letter to `false`
-to disable a default, or add another letter:
+A starter file ships in this repo as `tabarchy.jsonc`. Copy it only if you want
+to change commands. Tabarchy does not write that file for you. Set a letter to
+`false` to disable a default, or add another letter:
 
 ```jsonc
 {
@@ -105,10 +116,45 @@ Placeholders in `action`:
 | `{{url}}` | `https://` prepended if there is no scheme, quoted |
 
 `"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
+`"kind": "web"` opens a URL or falls back to the configured search provider.
 
-## Why this is a menu plugin
+## Dependencies
 
-Omarchy's Super+Space menu is `omarchy.menu`. Tab has to be handled in that
-surface, so Tabarchy replaces it the same way `omarchy plugin clone omarchy.menu`
-does (`clonedFrom: omarchy.menu`). The command tree, apps search, and dmenu
-select/input modes stay intact.
+Already present on a normal Omarchy install:
+
+- `fd` — file search (`f Tab`)
+- `wl-paste` — clipboard paste
+- `omarchy-launch-browser` — URLs, maps, and web search
+- `xdg-open` / `uwsm-app` — opening files
+- `omarchy-pkg-add` — `i Tab` (may prompt for sudo)
+
+## Why this stands in for the Omarchy menu
+
+Omarchy's Super+Space menu is `omarchy.menu`. It has no prefix/Tab API, so a
+third-party plugin cannot intercept one letter plus Tab without standing in for
+that menu. Tabarchy therefore sets `clonedFrom: omarchy.menu`: Super+Space,
+`omarchy menu`, and the bar icon keep working, and disabling Tabarchy restores
+the stock menu.
+
+That is a stand-in, not a second launcher. Tabarchy-specific code is `Bangs.js`,
+`Cli.qml`, `bin/omarchy-tabarchy-search`, and `patches/menu.patch`.
+`MenuModel.js` and `BarWidget.qml` are unmodified copies of Omarchy's. `Menu.qml`
+is Omarchy's menu plus that patch.
+
+`omarchy plugin update io.github.jexmarc.tabarchy` fast-forwards **this** git
+repo. It does not pull Omarchy menu fixes. After an Omarchy update, rebase the
+stand-in onto the new menu:
+
+```bash
+~/.config/omarchy/plugins/io.github.jexmarc.tabarchy/scripts/refresh-from-omarchy.sh
+omarchy restart shell
+```
+
+If the patch no longer applies, the script leaves `Menu.qml` unchanged and
+exits non-zero. The plugin keeps working with the last patched menu until the
+patch is updated for that Omarchy version.
+
+## License
+
+MIT. Menu files derived from Omarchy's `omarchy.menu` (David Heinemeier Hansson).
+Tabarchy additions © 2026 jexmarc.

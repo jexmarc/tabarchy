@@ -1,6 +1,7 @@
 MIT License
 
-Copyright (c) 2026 mgallagher
+Copyright (c) David Heinemeier Hansson
+Copyright (c) 2026 jexmarc
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +20,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Tabarchy's Menu.qml, MenuModel.js, and BarWidget.qml are derived from
+Omarchy's first-party omarchy.menu plugin. Tabarchy-specific behavior lives
+in Bangs.js, Cli.qml, bin/omarchy-tabarchy-search, and patches/menu.patch.

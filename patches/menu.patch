@@ -1,0 +1,455 @@
+--- Menu.qml
++++ Menu.qml
+@@ -5,6 +5,10 @@
+ import qs.Commons
+ import qs.Ui
+ import "MenuModel.js" as MenuModel
++import "Bangs.js" as Bangs
++
++// Derived from Omarchy's omarchy.menu Menu.qml. Tabarchy-only behavior is
++// the patch in patches/menu.patch; refresh with scripts/refresh-from-omarchy.sh.
+ 
+ Item {
+   id: root
+@@ -64,6 +68,14 @@
+   property bool rowsLoaded: false
+   property string activeMenu: "root"
+   property string filterText: ""
++  property var bangs: Bangs.defaults()
++  property string searchProvider: "google"
++  property var activeBang: null
++  property string bangQuery: ""
++  property string bangStashKey: ""
++  property string bangStashQuery: ""
++  property var bangFileRows: []
++  property int bangFilesGeneration: 0
+   property int selectedIndex: 0
+   property bool cursorActive: false
+   property int requestSerial: 0
+@@ -144,7 +156,210 @@
+   // Menu rows only surface their detail while a search is narrowing them;
+   // dmenu rows carry caller-supplied subtext that must always be visible.
+   function rowHeightForDetail(detail) {
+-    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
++    return (root.filterText || root.dmenuActive || root.activeBang) && detail ? root.detailRowHeight : root.baseRowHeight
++  }
++
++  function clearBang() {
++    root.activeBang = null
++    root.bangQuery = ""
++    root.bangFileRows = []
++    root.bangFilesGeneration += 1
++    bangFilesProc.running = false
++    bangFilesTimer.stop()
++  }
++
++  function bangLookup(letter) {
++    var key = String(letter || "").toLowerCase()
++    if (key.length !== 1) return null
++    return root.bangs[key] || null
++  }
++
++  function enterBang(bang) {
++    panel.freezeCardTop()
++    root.activeBang = bang
++    root.bangQuery = (root.bangStashKey === bang.key) ? root.bangStashQuery : ""
++    root.filterText = ""
++    root.bangFileRows = []
++    root.selectedIndex = 0
++    root.cursorActive = bang.kind !== "files" || !!root.bangQuery
++    root.disarmPointer()
++    if (bang.kind === "files") root.scheduleBangFiles()
++    root.rebuildDisplay()
++  }
++
++  function exitBang(restoreLetter) {
++    var key = root.activeBang ? root.activeBang.key : ""
++    root.bangStashKey = key
++    root.bangStashQuery = root.bangQuery
++    root.clearBang()
++    if (restoreLetter && key) root.setFilter(key)
++    else root.setFilter("")
++  }
++
++  function tryEnterBang() {
++    if (root.dmenuActive || root.activeBang) return false
++    var typed = root.filterText
++    if (!typed || typed.length !== 1) return false
++    var bang = root.bangLookup(typed)
++    if (!bang) return false
++    root.enterBang(bang)
++    return true
++  }
++
++  function toggleBang() {
++    if (root.dmenuActive) return
++    if (root.activeBang) root.exitBang(true)
++    else root.tryEnterBang()
++  }
++
++  function isPasteKey(event) {
++    var mods = event.modifiers
++    if (event.key === Qt.Key_Insert)
++      return !!(mods & Qt.ShiftModifier) && !(mods & Qt.ControlModifier) && !(mods & Qt.AltModifier) && !(mods & Qt.MetaModifier)
++    if (event.key !== Qt.Key_V) return false
++    if (mods & Qt.AltModifier) return false
++    if ((mods & Qt.ControlModifier) && (mods & Qt.MetaModifier)) return false
++    return !!(mods & Qt.ControlModifier) || !!(mods & Qt.MetaModifier)
++  }
++
++  function requestPaste() {
++    pasteProc.running = false
++    pasteProc.command = ["wl-paste", "--no-newline", "--type", "text"]
++    pasteProc.running = true
++  }
++
++  function applyPaste(raw) {
++    var clip = String(raw || "").replace(/\r/g, "").replace(/\n+/g, " ").trim()
++    if (!clip) return
++    if (clip.length > 500) clip = clip.slice(0, 500)
++    if (root.activeBang) root.setBangQuery(root.bangQuery + clip)
++    else root.setFilter(root.filterText + clip)
++  }
++
++  function setBangQuery(nextQuery) {
++    panel.freezeCardTop()
++    root.bangQuery = nextQuery
++    root.selectedIndex = 0
++    root.cursorActive = true
++    root.disarmPointer()
++    if (root.activeBang && root.activeBang.kind === "files") root.scheduleBangFiles()
++    root.rebuildDisplay()
++  }
++
++  function bangEmptyText() {
++    if (!root.activeBang) return ""
++    if (root.bangQuery) return "No matches for “" + root.bangQuery + "”"
++    if (root.activeBang.placeholder) return "Type " + root.activeBang.placeholder
++    return "Type to continue"
++  }
++
++  function headerText() {
++    if (root.activeBang)
++      return root.bangQuery ? root.activeBang.name + " " + root.bangQuery : root.activeBang.name + "…"
++    if (root.filterText) return root.filterText
++    if (root.dmenuActive) return root.dmenuPrompt + "…"
++    var current = root.item(root.activeMenu)
++    return ((current ? (current.title || current.label) : "Go") + "…")
++  }
++
++  function scheduleBangFiles() {
++    bangFilesTimer.restart()
++  }
++
++  function startBangFiles() {
++    if (!root.activeBang || root.activeBang.kind !== "files") return
++    var query = root.bangQuery.trim()
++    root.bangFilesGeneration += 1
++    bangFilesProc.running = false
++    if (!query) {
++      root.bangFileRows = []
++      root.rebuildDisplay()
++      return
++    }
++
++    bangFilesProc.generation = root.bangFilesGeneration
++    bangFilesProc.collected = ""
++    bangFilesProc.command = [
++      "fd", "--color=never", "--max-results", "50",
++      "--exclude", ".git", "--", query,
++      Quickshell.env("HOME") || ""
++    ]
++    bangFilesProc.running = true
++  }
++
++  function bangFileRow(path, index) {
++    return {
++      itemId: "bang.file." + index,
++      disabled: false,
++      kind: "bang-file",
++      icon: "",
++      iconFont: "",
++      appIcon: "",
++      appId: "",
++      label: Bangs.fileLabel(path),
++      target: "",
++      detail: path,
++      path: path,
++      childCount: 0,
++      action: path,
++      provider: "",
++      score: index,
++      section: ""
++    }
++  }
++
++  function rebuildBangDisplay() {
++    displayModel.clear()
++    root.searchDivider = false
++
++    var bang = root.activeBang
++    if (!bang) {
++      layoutSerial += 1
++      return
++    }
++
++    if (bang.kind === "files") {
++      for (var i = 0; i < root.bangFileRows.length; i++)
++        displayModel.append(root.bangFileRow(root.bangFileRows[i], i))
++    } else {
++      var query = root.bangQuery
++      var missing = bang.requiresQuery && !String(query).trim()
++      var label = bang.label || bang.name
++      var detail = String(query).trim() || bang.placeholder
++      var action = ""
++      if (!missing && bang.kind === "web") {
++        var dest = Bangs.webDestination(query, root.searchProvider, Util.shellQuote)
++        label = dest.label
++        detail = dest.detail || detail
++        action = dest.action
++      } else if (!missing) {
++        action = Bangs.expandAction(bang.action, query, Util.shellQuote)
++      }
++      displayModel.append({
++        itemId: "bang." + bang.key,
++        disabled: missing,
++        kind: "bang",
++        icon: bang.icon,
++        iconFont: bang.iconFont,
++        appIcon: "",
++        appId: "",
++        label: label,
++        target: "",
++        detail: detail,
++        path: "",
++        childCount: 0,
++        action: action,
++        provider: "",
++        score: 0,
++        section: ""
++      })
++    }
++
++    layoutSerial += 1
++    root.settleCursor()
++    Qt.callLater(function() {
++      if (displayModel.count > 0) root.revealCursor()
++    })
+   }
+ 
+   // Height the card can devote to rows before running off the screen — or
+@@ -607,6 +822,10 @@
+       root.rebuildDmenuDisplay()
+       return
+     }
++    if (root.activeBang) {
++      root.rebuildBangDisplay()
++      return
++    }
+ 
+     displayModel.clear()
+ 
+@@ -731,6 +950,7 @@
+     if (!root.item(id)) id = "root"
+     if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
+     root.activeMenu = id
++    root.clearBang()
+     root.filterText = ""
+     root.selectedIndex = 0
+     root.cursorActive = true
+@@ -772,7 +992,15 @@
+     if (!root.rowSelectable(index)) return
+ 
+     var row = displayModel.get(index)
+-    if (row.kind === "menu" || row.kind === "link") {
++    if (row.kind === "bang") {
++      root.applySelected(row.itemId, row.action)
++    } else if (row.kind === "bang-file") {
++      applySerial = requestSerial
++      opened = false
++      root.clearBang()
++      filterText = ""
++      Util.execArgv(["uwsm-app", "--", "xdg-open", row.action])
++    } else if (row.kind === "menu" || row.kind === "link") {
+       root.setActiveMenu(row.target || row.itemId, true, fromPointer)
+     } else if (row.kind === "app") {
+       var appId = row.appId
+@@ -824,6 +1052,7 @@
+ 
+     applySerial = requestSerial
+     opened = false
++    root.clearBang()
+     filterText = ""
+     root.runAction(action)
+   }
+@@ -831,6 +1060,7 @@
+   function cancel() {
+     if (root.dmenuActive) root.finishRequest(null)
+     opened = false
++    root.clearBang()
+     filterText = ""
+   }
+ 
+@@ -842,6 +1072,7 @@
+     doneFile = ""
+     activeMenu = root.item(initialMenu) ? initialMenu : "root"
+     navStack = []
++    root.clearBang()
+     filterText = ""
+     selectedIndex = 0
+     cursorActive = true
+@@ -870,6 +1101,7 @@
+     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
+     activeMenu = "root"
+     navStack = []
++    root.clearBang()
+     filterText = ""
+     selectedIndex = 0
+     cursorActive = mode !== "input"
+@@ -981,6 +1213,67 @@
+     onFileChanged: reload()
+   }
+ 
++  FileView {
++    id: bangsFile
++    path: Quickshell.env("HOME") + "/.config/omarchy/tabarchy.jsonc"
++    watchChanges: true
++    printErrors: false
++    onLoaded: { root.bangs = Bangs.mergeBangs(Bangs.defaults(), Bangs.parseBangs(text())) }
++    onLoadFailed: { root.bangs = Bangs.defaults() }
++    onFileChanged: reload()
++  }
++
++  FileView {
++    id: searchProviderFile
++    path: Quickshell.env("HOME") + "/.config/omarchy/defaults/search"
++    watchChanges: true
++    printErrors: false
++    onLoaded: {
++      var next = String(text() || "").trim() || "google"
++      root.searchProvider = next
++      if (root.opened && root.activeBang && root.activeBang.kind === "web")
++        root.rebuildDisplay()
++    }
++    onLoadFailed: { root.searchProvider = "google" }
++    onFileChanged: reload()
++  }
++
++  Timer {
++    id: bangFilesTimer
++    interval: 80
++    repeat: false
++    onTriggered: root.startBangFiles()
++  }
++
++  Process {
++    id: pasteProc
++    stdout: StdioCollector {
++      waitForEnd: true
++      onStreamFinished: root.applyPaste(text)
++    }
++  }
++
++  Process {
++    id: bangFilesProc
++    property string collected: ""
++    property int generation: 0
++    stdout: SplitParser {
++      onRead: function(data) { bangFilesProc.collected += data + "\n" }
++    }
++    onExited: {
++      if (bangFilesProc.generation !== root.bangFilesGeneration) return
++      if (!root.activeBang || root.activeBang.kind !== "files") return
++      var rows = []
++      var lines = bangFilesProc.collected.split("\n")
++      for (var i = 0; i < lines.length; i++) {
++        var line = lines[i]
++        if (line) rows.push(line)
++      }
++      root.bangFileRows = rows
++      root.rebuildDisplay()
++    }
++  }
++
+   // ---------------------------------------------------------------- guards
+   //
+   // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
+@@ -1130,15 +1423,30 @@
+             root.requestDeleteSelected()
+             event.accepted = true
+           } else if (event.key === Qt.Key_Escape) {
+-            if (root.filterText) root.setFilter("")
++            if (root.activeBang) {
++              if (root.bangQuery) root.setBangQuery("")
++              else root.exitBang(false)
++            } else if (root.filterText) root.setFilter("")
+             else root.cancel()
+             event.accepted = true
++          } else if (root.activeBang && Util.editsFilter(event, root.bangQuery)) {
++            root.setBangQuery(Util.editedFilter(event, root.bangQuery))
++            event.accepted = true
++          } else if (root.activeBang && (event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.bangQuery) {
++            root.exitBang(true)
++            event.accepted = true
+           } else if (Util.editsFilter(event, root.filterText)) {
+             root.setFilter(Util.editedFilter(event, root.filterText))
+             event.accepted = true
+-          } else if ((event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.filterText) {
++          } else if (!root.activeBang && (event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.filterText) {
+             root.goBack()
+             event.accepted = true
++          } else if (event.key === Qt.Key_Tab) {
++            root.toggleBang()
++            event.accepted = true
++          } else if (root.isPasteKey(event)) {
++            root.requestPaste()
++            event.accepted = true
+           } else if (event.key === Qt.Key_Up) {
+             root.select(-1)
+             event.accepted = true
+@@ -1155,11 +1463,14 @@
+             if (root.dmenuActive) {
+               if (root.mode === "input") root.applyDmenuSelection(root.filterText)
+               else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
++            } else if (root.activeBang) {
++              if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
+             } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
+             else root.settleCursor()
+             event.accepted = true
+           } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
+-            root.setFilter(root.filterText + event.text)
++            if (root.activeBang) root.setBangQuery(root.bangQuery + event.text)
++            else root.setFilter(root.filterText + event.text)
+             event.accepted = true
+           }
+         }
+@@ -1203,9 +1514,9 @@
+             anchors.left: parent.left
+             anchors.right: parent.right
+             anchors.verticalCenter: parent.verticalCenter
+-            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
++            text: root.headerText()
+             color: root.foreground
+-            opacity: root.filterText ? 1 : 0.58
++            opacity: (root.filterText || root.bangQuery) ? 1 : 0.58
+             font.family: root.fontFamily
+             font.pixelSize: Style.font.heading
+             elide: Text.ElideRight
+@@ -1344,7 +1655,7 @@
+                   textFormat: Text.PlainText
+                   width: parent.width
+                   text: row.detail
+-                  visible: (root.filterText || row.kind === "dmenu") && row.detail.length > 0
++                  visible: (root.filterText || row.kind === "dmenu" || root.activeBang) && row.detail.length > 0
+                   color: root.foreground
+                   opacity: 0.52
+                   font.family: root.fontFamily
+@@ -1459,7 +1770,7 @@
+ 
+             Text {
+               textFormat: Text.PlainText
+-              text: root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet"
++              text: root.activeBang ? root.bangEmptyText() : (root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet")
+               color: root.foreground
+               opacity: 0.7
+               font.family: root.fontFamily

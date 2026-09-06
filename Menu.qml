@@ -7,6 +7,9 @@ import qs.Ui
 import "MenuModel.js" as MenuModel
 import "Bangs.js" as Bangs
 
+// Derived from Omarchy's omarchy.menu Menu.qml. Tabarchy-only behavior is
+// the patch in patches/menu.patch; refresh with scripts/refresh-from-omarchy.sh.
+
 Item {
   id: root
 
