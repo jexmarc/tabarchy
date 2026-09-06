@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Ui
 
 // Two equal choices. Escape and the scrim dismiss without picking.
 Item {

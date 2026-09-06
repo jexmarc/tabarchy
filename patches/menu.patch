@@ -546,7 +546,7 @@
 +
 +  function isMarkdownPath(path) {
 +    var name = String(path || "").toLowerCase()
-+    return /\.(md|markdown|mkd|mdown|mdwn)$/.test(name)
++    return name.endsWith(".md") || name.endsWith(".markdown") || name.endsWith(".mkd") || name.endsWith(".mdown") || name.endsWith(".mdwn")
 +  }
 +
 +  function openFilePath(path, mode) {
