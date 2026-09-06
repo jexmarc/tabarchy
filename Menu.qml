@@ -1657,25 +1657,15 @@ Item {
             elide: Text.ElideRight
           }
 
-          Text {
+          Scanner {
             id: headerSpinner
             visible: root.bangPkgSearching
-            textFormat: Text.PlainText
-            text: "󰦖"
-            color: root.foreground
-            opacity: 0.8
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.heading
+            running: root.bangPkgSearching
+            cells: 7
+            width: Style.space(52)
+            height: Style.space(10)
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            RotationAnimator on rotation {
-              running: headerSpinner.visible
-              from: 0
-              to: 360
-              duration: 800
-              loops: Animation.Infinite
-              onRunningChanged: if (!running) headerSpinner.rotation = 0
-            }
           }
 
         }
@@ -1915,23 +1905,24 @@ Item {
             spacing: Style.space(8)
             visible: displayModel.count === 0 && root.mode !== "input"
 
+            Scanner {
+              visible: root.bangPkgSearching
+              running: root.bangPkgSearching
+              cells: 11
+              width: Style.space(180)
+              height: Style.space(14)
+              anchors.horizontalCenter: parent.horizontalCenter
+            }
+
             Text {
-              id: emptyIcon
-              text: root.bangPkgSearching ? "󰦖" : "󰈉"
+              visible: !root.bangPkgSearching
+              text: "󰈉"
               color: root.selectedText
               opacity: 0.8
               font.family: root.fontFamily
               font.pixelSize: Style.font.displayLarge
               horizontalAlignment: Text.AlignHCenter
               width: Style.space(320)
-              RotationAnimator on rotation {
-                running: root.bangPkgSearching && displayModel.count === 0
-                from: 0
-                to: 360
-                duration: 800
-                loops: Animation.Infinite
-                onRunningChanged: if (!running) emptyIcon.rotation = 0
-              }
             }
 
             Text {

@@ -563,7 +563,7 @@
              event.accepted = true
            }
          }
-@@ -1201,16 +1646,38 @@
+@@ -1201,16 +1646,28 @@
            Text {
              textFormat: Text.PlainText
              anchors.left: parent.left
@@ -581,31 +581,21 @@
              elide: Text.ElideRight
            }
  
-+          Text {
++          Scanner {
 +            id: headerSpinner
 +            visible: root.bangPkgSearching
-+            textFormat: Text.PlainText
-+            text: "󰦖"
-+            color: root.foreground
-+            opacity: 0.8
-+            font.family: root.fontFamily
-+            font.pixelSize: Style.font.heading
++            running: root.bangPkgSearching
++            cells: 7
++            width: Style.space(52)
++            height: Style.space(10)
 +            anchors.right: parent.right
 +            anchors.verticalCenter: parent.verticalCenter
-+            RotationAnimator on rotation {
-+              running: headerSpinner.visible
-+              from: 0
-+              to: 360
-+              duration: 800
-+              loops: Animation.Infinite
-+              onRunningChanged: if (!running) headerSpinner.rotation = 0
-+            }
 +          }
 +
          }
  
          Item {
-@@ -1224,6 +1691,7 @@
+@@ -1224,6 +1681,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -613,7 +603,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1344,7 +1812,7 @@
+@@ -1344,7 +1802,7 @@
                    textFormat: Text.PlainText
                    width: parent.width
                    text: row.detail
@@ -622,28 +612,25 @@
                    color: root.foreground
                    opacity: 0.52
                    font.family: root.fontFamily
-@@ -1448,18 +1916,27 @@
+@@ -1447,7 +1905,17 @@
+             spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
++            Scanner {
++              visible: root.bangPkgSearching
++              running: root.bangPkgSearching
++              cells: 11
++              width: Style.space(180)
++              height: Style.space(14)
++              anchors.horizontalCenter: parent.horizontalCenter
++            }
++
              Text {
--              text: "󰈉"
-+              id: emptyIcon
-+              text: root.bangPkgSearching ? "󰦖" : "󰈉"
++              visible: !root.bangPkgSearching
+               text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-               font.family: root.fontFamily
-               font.pixelSize: Style.font.displayLarge
-               horizontalAlignment: Text.AlignHCenter
-               width: Style.space(320)
-+              RotationAnimator on rotation {
-+                running: root.bangPkgSearching && displayModel.count === 0
-+                from: 0
-+                to: 360
-+                duration: 800
-+                loops: Animation.Infinite
-+                onRunningChanged: if (!running) emptyIcon.rotation = 0
-+              }
-             }
+@@ -1459,7 +1927,7 @@
  
              Text {
                textFormat: Text.PlainText
