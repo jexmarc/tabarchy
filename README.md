@@ -10,12 +10,56 @@ that letter in ordinary search.
 
 ```
 Super+Space
+w Tab
+gh
+Enter
+```
+
+opens GitHub in your default browser (`amazon` and `discord` are aliases too;
+anything that looks like a URL opens as one, otherwise it searches the web).
+
+```
+Super+Space
+f Tab
+readme
+Enter
+```
+
+opens a matching file under your home directory (`'` shows it in Files instead).
+
+```
+Super+Space
 m Tab
 1600 Pennsylvania Ave
 Enter
 ```
 
-opens Google Maps in your default browser.
+opens Google Maps.
+
+```
+Super+Space
+i Tab
+ripgrep
+Enter
+```
+
+searches Arch, Omarchy, and the AUR, then installs the selected package.
+
+```
+Super+Space
+r Tab
+ripgrep
+Enter
+```
+
+searches installed packages and uninstalls the selected one.
+
+```
+Super+Space
+? Tab
+```
+
+lists every command. Enter on a row jumps into it.
 
 Plugins run unsandboxed inside the long-lived `omarchy-shell` process, with
 your user permissions. Review the source before you enable it.
