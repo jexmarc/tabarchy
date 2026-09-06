@@ -104,7 +104,7 @@ clean slate.
 | Type | Tab | Then |
 |---|---|---|
 | `m` | maps | an address, Enter |
-| `w` | web | a URL **or** a search, Enter |
+| `w` | web | a URL, an alias, **or** a search, Enter |
 | `f` | files | a filename, Enter to open |
 | `i` | install | a package name; pick a result, Enter to install |
 | `r` | remove | an installed package; pick a result, Enter to uninstall |
@@ -118,8 +118,25 @@ clean slate.
 
 Two or more characters never trigger a command, so `ma` still searches the menu.
 
-`w Tab` opens a URL when the query looks like one (`amazon.com`, `https://…`).
-Anything else is a web search. The default provider is Google.
+`w Tab` lists matching aliases as you type, then a URL or a search. Enter
+opens the highlighted row. Defaults include `amazon` → amazon.com and
+`discord` → discord.com. Type `amazon.com` or `https://…` to open a URL
+directly. Anything else is a web search. The default provider is Google.
+
+Aliases live in `~/.config/omarchy/tabarchy.jsonc` (watched live):
+
+```jsonc
+{
+  "aliases": {
+    "amazon": "https://amazon.com/",
+    "discord": "https://discord.com/",
+    "gh": "https://github.com/"
+  }
+}
+```
+
+Set an alias to `false` to drop a default. Tabarchy does not read browser
+bookmarks; aliases are the supported shortcut list.
 
 Enabling the plugin puts `omarchy-tabarchy-search` on your PATH (`~/.local/bin`).
 That symlink is removed when you disable or uninstall Tabarchy. If you already
@@ -173,7 +190,8 @@ Placeholders in `action`:
 
 `"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
 The menu is double-wide so longer filenames and paths stay readable.
-`"kind": "web"` opens a URL or falls back to the configured search provider.
+`"kind": "web"` lists aliases, opens a URL, or falls back to the configured search provider.
+Top-level `"aliases"` (or `"aliases"` on the web command) maps names to URLs.
 `"kind": "packages"` searches Arch, the Omarchy repo, and the AUR, then
 installs the selected package (`omarchy pkg add` or `omarchy pkg aur add`).
 `"kind": "remove-packages"` searches only packages already on the machine,

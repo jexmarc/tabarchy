@@ -11,11 +11,12 @@
  
  Item {
    id: root
-@@ -64,6 +68,25 @@
+@@ -64,6 +68,26 @@
    property bool rowsLoaded: false
    property string activeMenu: "root"
    property string filterText: ""
 +  property var bangs: Bangs.defaults()
++  property var webAliases: Bangs.defaultWebAliases()
 +  property string searchProvider: "google"
 +  property var activeBang: null
 +  property string bangQuery: ""
@@ -37,14 +38,14 @@
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -108,11 +131,25 @@
+@@ -108,11 +132,25 @@
    property int dividerHeight: Style.space(17)
    property bool searchDivider: false
    property int layoutSerial: 0
 -  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
 +  readonly property bool pkgBang: root.activeBang && (root.activeBang.kind === "packages" || root.activeBang.kind === "remove-packages")
 +  readonly property bool pkgRemove: root.activeBang && root.activeBang.kind === "remove-packages"
-+  readonly property bool wideBang: root.pkgBang || (root.activeBang && root.activeBang.kind === "files")
++  readonly property bool wideBang: root.pkgBang || (root.activeBang && (root.activeBang.kind === "files" || root.activeBang.kind === "web"))
 +  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideBang ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
    property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
 +  readonly property bool pkgPane: root.pkgBang
@@ -65,7 +66,7 @@
  
    function finishRequest(selection) {
      if (!root.requestActive || !root.doneFile) {
-@@ -144,7 +181,307 @@
+@@ -144,7 +182,348 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
@@ -261,6 +262,30 @@
 +    root.rebuildDisplay()
 +  }
 +
++  function bangWebRow(choice, index, bang) {
++    var icon = bang.icon
++    if (choice.kind === "alias") icon = ""
++    else if (choice.kind === "search") icon = "󰍉"
++    return {
++      itemId: "bang.web." + index,
++      disabled: false,
++      kind: "bang",
++      icon: icon,
++      iconFont: bang.iconFont || "",
++      appIcon: "",
++      appId: "",
++      label: choice.label,
++      target: "",
++      detail: choice.detail,
++      path: "",
++      childCount: 0,
++      action: choice.action,
++      provider: choice.kind,
++      score: index,
++      section: ""
++    }
++  }
++
 +  function bangFileRow(path, index) {
 +    return {
 +      itemId: "bang.file." + index,
@@ -332,20 +357,37 @@
 +    } else if (bang.kind === "packages" || bang.kind === "remove-packages") {
 +      for (var p = 0; p < root.bangPkgRows.length; p++)
 +        displayModel.append(root.bangPkgRow(root.bangPkgRows[p], p))
++    } else if (bang.kind === "web") {
++      var choices = Bangs.webChoices(root.bangQuery, root.webAliases, root.searchProvider, Util.shellQuote)
++      if (choices.length === 0) {
++        displayModel.append({
++          itemId: "bang." + bang.key,
++          disabled: true,
++          kind: "bang",
++          icon: bang.icon,
++          iconFont: bang.iconFont,
++          appIcon: "",
++          appId: "",
++          label: bang.label || bang.name,
++          target: "",
++          detail: bang.placeholder,
++          path: "",
++          childCount: 0,
++          action: "",
++          provider: "",
++          score: 0,
++          section: ""
++        })
++      } else {
++        for (var w = 0; w < choices.length; w++)
++          displayModel.append(root.bangWebRow(choices[w], w, bang))
++      }
 +    } else {
 +      var query = root.bangQuery
 +      var missing = bang.requiresQuery && !String(query).trim()
 +      var label = bang.label || bang.name
 +      var detail = String(query).trim() || bang.placeholder
-+      var action = ""
-+      if (!missing && bang.kind === "web") {
-+        var dest = Bangs.webDestination(query, root.searchProvider, Util.shellQuote)
-+        label = dest.label
-+        detail = dest.detail || detail
-+        action = dest.action
-+      } else if (!missing) {
-+        action = Bangs.expandAction(bang.action, query, Util.shellQuote)
-+      }
++      var action = missing ? "" : Bangs.expandAction(bang.action, query, Util.shellQuote)
 +      displayModel.append({
 +        itemId: "bang." + bang.key,
 +        disabled: missing,
@@ -374,7 +416,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -607,6 +944,10 @@
+@@ -607,6 +986,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -385,7 +427,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1072,7 @@
+@@ -731,6 +1114,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -393,7 +435,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -772,7 +1114,17 @@
+@@ -772,7 +1156,17 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -412,7 +454,7 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -824,6 +1176,7 @@
+@@ -824,6 +1218,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -420,7 +462,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1184,7 @@
+@@ -831,6 +1226,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -428,7 +470,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1196,7 @@
+@@ -842,6 +1238,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -436,7 +478,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1225,7 @@
+@@ -870,6 +1267,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -444,7 +486,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1337,121 @@
+@@ -981,6 +1379,129 @@
      onFileChanged: reload()
    }
  
@@ -453,8 +495,16 @@
 +    path: Quickshell.env("HOME") + "/.config/omarchy/tabarchy.jsonc"
 +    watchChanges: true
 +    printErrors: false
-+    onLoaded: { root.bangs = Bangs.mergeBangs(Bangs.defaults(), Bangs.parseBangs(text())) }
-+    onLoadFailed: { root.bangs = Bangs.defaults() }
++    onLoaded: {
++      var raw = text()
++      root.bangs = Bangs.mergeBangs(Bangs.defaults(), Bangs.parseBangs(raw))
++      root.webAliases = Bangs.mergeAliases(Bangs.defaultWebAliases(), Bangs.parseAliases(raw))
++      if (root.opened && root.activeBang) root.rebuildDisplay()
++    }
++    onLoadFailed: {
++      root.bangs = Bangs.defaults()
++      root.webAliases = Bangs.defaultWebAliases()
++    }
 +    onFileChanged: reload()
 +  }
 +
@@ -566,7 +616,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1130,19 +1601,34 @@
+@@ -1130,19 +1651,34 @@
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -605,7 +655,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +1641,14 @@
+@@ -1155,11 +1691,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -621,7 +671,7 @@
              event.accepted = true
            }
          }
-@@ -1201,16 +1690,28 @@
+@@ -1201,16 +1740,28 @@
            Text {
              textFormat: Text.PlainText
              anchors.left: parent.left
@@ -653,7 +703,7 @@
          }
  
          Item {
-@@ -1224,6 +1725,7 @@
+@@ -1224,6 +1775,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -661,7 +711,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1261,16 +1763,19 @@
+@@ -1261,16 +1813,19 @@
                required property string action
                required property int childCount
                required property bool disabled
@@ -683,7 +733,7 @@
                radius: root.cornerRadius
                color: row.hasCursor ? root.selectedBackground : "transparent"
                borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
-@@ -1299,7 +1804,7 @@
+@@ -1299,7 +1854,7 @@
                  verticalAlignment: Text.AlignVCenter
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8)
@@ -692,7 +742,7 @@
                }
  
                Image {
-@@ -1316,7 +1821,7 @@
+@@ -1316,7 +1871,7 @@
                  asynchronous: true
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
@@ -701,7 +751,7 @@
                }
  
                Column {
-@@ -1328,27 +1833,57 @@
+@@ -1328,27 +1883,57 @@
                  anchors.verticalCenter: parent.verticalCenter
                  spacing: Style.space(3)
  
@@ -769,7 +819,7 @@
                    elide: Text.ElideRight
                  }
                }
-@@ -1358,7 +1893,7 @@
+@@ -1358,7 +1943,7 @@
                  width: Style.space(14)
                  anchors.right: parent.right
                  anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
@@ -778,7 +828,7 @@
                  spacing: 0
  
                  Text {
-@@ -1447,7 +1982,17 @@
+@@ -1447,7 +2032,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -796,7 +846,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +2004,7 @@
+@@ -1459,7 +2054,7 @@
  
              Text {
                textFormat: Text.PlainText
@@ -805,7 +855,7 @@
                color: root.foreground
                opacity: 0.7
                font.family: root.fontFamily
-@@ -1470,6 +2015,35 @@
+@@ -1470,6 +2065,35 @@
            }
          }
  

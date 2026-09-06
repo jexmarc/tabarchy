@@ -11,6 +11,9 @@
   // kind "files" lists matches under your home directory instead of
   // running a command. kind "packages" searches Arch, Omarchy, and the AUR
   // to install. kind "remove-packages" searches installed packages to remove.
+  //
+  // "aliases" are shortcuts for w Tab. Type a name to open that URL.
+  // Set a name to false to drop a default. https:// is added if omitted.
 
   "m": {
     "name": "maps",
@@ -22,7 +25,7 @@
   "w": {
     "name": "web",
     "icon": "󰖟",
-    "placeholder": "url or search",
+    "placeholder": "url, search, or alias",
     "label": "Open URL or search",
     "kind": "web"
   },
@@ -43,5 +46,10 @@
     "icon": "󰆴",
     "placeholder": "package",
     "kind": "remove-packages"
+  },
+
+  "aliases": {
+    "amazon": "https://amazon.com/",
+    "discord": "https://discord.com/"
   }
 }

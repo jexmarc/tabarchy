@@ -77,6 +77,174 @@ function webDestination(query, providerValue, quoteFn) {
   }
 }
 
+function canonicalUrl(url) {
+  return String(url || "").trim().replace(/\/+$/, "").toLowerCase()
+}
+
+function hostFromUrl(url) {
+  var match = String(url || "").match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/([^/?#]+)/)
+  if (!match) return ""
+  return match[1].replace(/^www\./i, "").toLowerCase()
+}
+
+function defaultWebAliases() {
+  return {
+    amazon: { key: "amazon", name: "amazon", url: "https://amazon.com/" },
+    discord: { key: "discord", name: "discord", url: "https://discord.com/" }
+  }
+}
+
+function normalizeAliasMap(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {}
+  var out = {}
+  for (var key in raw) {
+    if (!Object.prototype.hasOwnProperty.call(raw, key)) continue
+    var k = String(key || "").trim().toLowerCase()
+    if (!k) continue
+    var value = raw[key]
+    if (value === false || value === null) {
+      out[k] = { key: k, disabled: true }
+      continue
+    }
+    var url = ""
+    var name = k
+    if (typeof value === "string") {
+      url = value
+    } else if (value && typeof value === "object") {
+      url = String(value.url || value.action || "")
+      if (value.name) name = String(value.name)
+    }
+    url = String(url || "").trim()
+    if (!url) continue
+    out[k] = { key: k, name: name, url: toUrl(url) }
+  }
+  return out
+}
+
+function parseAliases(raw) {
+  var text = stripJsonc(raw).trim()
+  if (!text) return {}
+
+  var data
+  try {
+    data = JSON.parse(text)
+  } catch (e) {
+    return {}
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {}
+
+  var out = {}
+  var bangsRoot = data
+  if (data.bangs && typeof data.bangs === "object" && !Array.isArray(data.bangs))
+    bangsRoot = data.bangs
+
+  var maps = [data.aliases, bangsRoot.aliases]
+  var w = bangsRoot.w || bangsRoot.W
+  if (w && typeof w === "object") maps.push(w.aliases)
+  for (var i = 0; i < maps.length; i++) {
+    var extra = normalizeAliasMap(maps[i])
+    for (var key in extra) {
+      if (Object.prototype.hasOwnProperty.call(extra, key)) out[key] = extra[key]
+    }
+  }
+  return out
+}
+
+function mergeAliases(base, overlay) {
+  var out = {}
+  var key
+  for (key in base) {
+    if (Object.prototype.hasOwnProperty.call(base, key) && !base[key].disabled)
+      out[key] = base[key]
+  }
+  for (key in overlay) {
+    if (!Object.prototype.hasOwnProperty.call(overlay, key)) continue
+    if (overlay[key] && overlay[key].disabled) delete out[key]
+    else out[key] = overlay[key]
+  }
+  return out
+}
+
+function aliasScore(alias, query) {
+  if (!alias || alias.disabled) return -1
+  var q = String(query || "").trim().toLowerCase()
+  if (!q) return 10
+  var key = String(alias.key || "").toLowerCase()
+  var name = String(alias.name || "").toLowerCase()
+  var host = hostFromUrl(alias.url)
+  var url = String(alias.url || "").toLowerCase()
+  if (key === q || name === q) return 0
+  if (key.indexOf(q) === 0 || name.indexOf(q) === 0) return 1
+  if (host && host.indexOf(q) === 0) return 2
+  if (key.indexOf(q) >= 0 || name.indexOf(q) >= 0) return 3
+  if ((host && host.indexOf(q) >= 0) || url.indexOf(q) >= 0) return 4
+  return -1
+}
+
+function matchAliases(aliases, query) {
+  var list = []
+  if (!aliases) return list
+  for (var key in aliases) {
+    if (!Object.prototype.hasOwnProperty.call(aliases, key)) continue
+    var alias = aliases[key]
+    var score = aliasScore(alias, query)
+    if (score < 0) continue
+    list.push({
+      key: alias.key || key,
+      name: alias.name || key,
+      url: alias.url,
+      score: score
+    })
+  }
+  list.sort(function(a, b) {
+    if (a.score !== b.score) return a.score - b.score
+    return String(a.key).localeCompare(String(b.key))
+  })
+  return list
+}
+
+function webChoices(query, aliases, providerValue, quoteFn) {
+  var q = String(query || "").trim()
+  var quote = quoteFn || shellQuote
+  var out = []
+  var seen = {}
+  var matches = matchAliases(aliases, q)
+  var i
+  for (i = 0; i < matches.length; i++) {
+    var alias = matches[i]
+    var aliasKey = canonicalUrl(alias.url)
+    if (aliasKey) seen[aliasKey] = true
+    out.push({
+      kind: "alias",
+      label: alias.name || alias.key,
+      detail: alias.url,
+      action: "omarchy-launch-browser " + quote(alias.url)
+    })
+  }
+  if (!q) return out
+  if (looksLikeUrl(q)) {
+    var url = toUrl(q)
+    var urlKey = canonicalUrl(url)
+    if (!urlKey || !seen[urlKey]) {
+      out.push({
+        kind: "url",
+        label: "Open URL",
+        detail: url,
+        action: "omarchy-launch-browser " + quote(url)
+      })
+    }
+  } else {
+    var dest = webDestination(q, providerValue, quote)
+    out.push({
+      kind: "search",
+      label: dest.label,
+      detail: dest.detail,
+      action: dest.action
+    })
+  }
+  return out
+}
+
 function normalizeBang(key, raw) {
   var k = String(key || "").toLowerCase()
   if (k.length !== 1) return null
@@ -148,7 +316,7 @@ function defaults() {
       name: "web",
       icon: "󰖟",
       iconFont: "",
-      placeholder: "url or search",
+      placeholder: "url, search, or alias",
       label: "Open URL or search",
       kind: "web",
       requiresQuery: true,

@@ -69,6 +69,7 @@ Item {
   property string activeMenu: "root"
   property string filterText: ""
   property var bangs: Bangs.defaults()
+  property var webAliases: Bangs.defaultWebAliases()
   property string searchProvider: "google"
   property var activeBang: null
   property string bangQuery: ""
@@ -133,7 +134,7 @@ Item {
   property int layoutSerial: 0
   readonly property bool pkgBang: root.activeBang && (root.activeBang.kind === "packages" || root.activeBang.kind === "remove-packages")
   readonly property bool pkgRemove: root.activeBang && root.activeBang.kind === "remove-packages"
-  readonly property bool wideBang: root.pkgBang || (root.activeBang && root.activeBang.kind === "files")
+  readonly property bool wideBang: root.pkgBang || (root.activeBang && (root.activeBang.kind === "files" || root.activeBang.kind === "web"))
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideBang ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   readonly property bool pkgPane: root.pkgBang
@@ -372,6 +373,30 @@ Item {
     root.rebuildDisplay()
   }
 
+  function bangWebRow(choice, index, bang) {
+    var icon = bang.icon
+    if (choice.kind === "alias") icon = ""
+    else if (choice.kind === "search") icon = "󰍉"
+    return {
+      itemId: "bang.web." + index,
+      disabled: false,
+      kind: "bang",
+      icon: icon,
+      iconFont: bang.iconFont || "",
+      appIcon: "",
+      appId: "",
+      label: choice.label,
+      target: "",
+      detail: choice.detail,
+      path: "",
+      childCount: 0,
+      action: choice.action,
+      provider: choice.kind,
+      score: index,
+      section: ""
+    }
+  }
+
   function bangFileRow(path, index) {
     return {
       itemId: "bang.file." + index,
@@ -443,20 +468,37 @@ Item {
     } else if (bang.kind === "packages" || bang.kind === "remove-packages") {
       for (var p = 0; p < root.bangPkgRows.length; p++)
         displayModel.append(root.bangPkgRow(root.bangPkgRows[p], p))
+    } else if (bang.kind === "web") {
+      var choices = Bangs.webChoices(root.bangQuery, root.webAliases, root.searchProvider, Util.shellQuote)
+      if (choices.length === 0) {
+        displayModel.append({
+          itemId: "bang." + bang.key,
+          disabled: true,
+          kind: "bang",
+          icon: bang.icon,
+          iconFont: bang.iconFont,
+          appIcon: "",
+          appId: "",
+          label: bang.label || bang.name,
+          target: "",
+          detail: bang.placeholder,
+          path: "",
+          childCount: 0,
+          action: "",
+          provider: "",
+          score: 0,
+          section: ""
+        })
+      } else {
+        for (var w = 0; w < choices.length; w++)
+          displayModel.append(root.bangWebRow(choices[w], w, bang))
+      }
     } else {
       var query = root.bangQuery
       var missing = bang.requiresQuery && !String(query).trim()
       var label = bang.label || bang.name
       var detail = String(query).trim() || bang.placeholder
-      var action = ""
-      if (!missing && bang.kind === "web") {
-        var dest = Bangs.webDestination(query, root.searchProvider, Util.shellQuote)
-        label = dest.label
-        detail = dest.detail || detail
-        action = dest.action
-      } else if (!missing) {
-        action = Bangs.expandAction(bang.action, query, Util.shellQuote)
-      }
+      var action = missing ? "" : Bangs.expandAction(bang.action, query, Util.shellQuote)
       displayModel.append({
         itemId: "bang." + bang.key,
         disabled: missing,
@@ -1342,8 +1384,16 @@ Item {
     path: Quickshell.env("HOME") + "/.config/omarchy/tabarchy.jsonc"
     watchChanges: true
     printErrors: false
-    onLoaded: { root.bangs = Bangs.mergeBangs(Bangs.defaults(), Bangs.parseBangs(text())) }
-    onLoadFailed: { root.bangs = Bangs.defaults() }
+    onLoaded: {
+      var raw = text()
+      root.bangs = Bangs.mergeBangs(Bangs.defaults(), Bangs.parseBangs(raw))
+      root.webAliases = Bangs.mergeAliases(Bangs.defaultWebAliases(), Bangs.parseAliases(raw))
+      if (root.opened && root.activeBang) root.rebuildDisplay()
+    }
+    onLoadFailed: {
+      root.bangs = Bangs.defaults()
+      root.webAliases = Bangs.defaultWebAliases()
+    }
     onFileChanged: reload()
   }
 
