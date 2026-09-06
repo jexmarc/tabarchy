@@ -147,6 +147,8 @@ Item {
   readonly property bool pkgPane: root.pkgBang
   readonly property bool pkgDetailVisible: root.pkgPane && displayModel.count > 0
   property int pkgDetailHeight: Style.space(72)
+  readonly property bool helpPane: root.activeBang && root.activeBang.kind === "help"
+  property int helpNavHeight: Style.space(52)
   readonly property string selectedPkgDetail: {
     var _watch = root.layoutSerial
     if (!root.pkgDetailVisible || !root.cursorActive) return ""
@@ -157,7 +159,7 @@ Item {
   }
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
-    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + (root.pkgDetailVisible ? contentSpacing + pkgDetailHeight : 0), panel.height - Style.gapsOut * 2)
+    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + (root.pkgDetailVisible ? contentSpacing + pkgDetailHeight : 0) + (root.helpPane ? contentSpacing + helpNavHeight : 0), panel.height - Style.gapsOut * 2)
 
   function finishRequest(selection) {
     if (!root.requestActive || !root.doneFile) {
@@ -509,16 +511,6 @@ Item {
           if (hay.indexOf(helpQuery) < 0) continue
         }
         displayModel.append(root.bangHelpRow(item, shown))
-        shown += 1
-      }
-      var shortcuts = Bangs.helpShortcutRows()
-      for (var s = 0; s < shortcuts.length; s++) {
-        var shortcut = shortcuts[s]
-        if (helpQuery) {
-          var shortcutHay = (shortcut.key + " " + shortcut.name + " " + shortcut.help).toLowerCase()
-          if (shortcutHay.indexOf(helpQuery) < 0) continue
-        }
-        displayModel.append(root.bangHelpRow(shortcut, shown))
         shown += 1
       }
     } else if (bang.kind === "web") {
@@ -2241,6 +2233,51 @@ Item {
             wrapMode: Text.WordWrap
             maximumLineCount: 4
             elide: Text.ElideRight
+          }
+        }
+
+        Item {
+          visible: root.helpPane
+          width: parent.width
+          height: visible ? root.helpNavHeight : 0
+          clip: true
+
+          Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: Style.spacing.hairline
+            color: Util.alpha(root.foreground, 0.2)
+          }
+
+          Column {
+            anchors.fill: parent
+            anchors.topMargin: Style.space(8)
+            spacing: Style.space(3)
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: "Navigation"
+              color: root.foreground
+              opacity: 0.5
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.weight: Font.Medium
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: "Ctrl+J / Ctrl+K  down / up     Super+V / Ctrl+V  paste"
+              color: root.foreground
+              opacity: 0.62
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.WordWrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
           }
         }
 

@@ -116,8 +116,9 @@ All of these start from Super+Space, then **one letter + Tab**.
 
 Two or more characters never trigger a command, so `ma` still searches the menu.
 
-`? Tab` lists every enabled command (including letters you add) and the
-navigation keys. Enter on a command row jumps into that command.
+`? Tab` lists every enabled command (including letters you add). Enter on a
+row jumps into that command. Navigation keys sit in a footer under the list,
+not as selectable rows.
 
 ### Maps (`m Tab`)
 
@@ -207,7 +208,7 @@ global Hyprland binds.
 | `'` or Ctrl+Enter | in `f Tab`, show the selected file in Files |
 | V / E | in the markdown prompt, View / Edit |
 
-`? Tab` also lists Ctrl+J, Ctrl+K, and paste.
+`? Tab` shows those navigation keys in a footer under the command list.
 
 ## Configure
 

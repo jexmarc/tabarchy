@@ -414,35 +414,6 @@ function helpKeys(bangs) {
   return keys
 }
 
-function helpShortcutRows() {
-  return [
-    {
-      key: "C-j",
-      name: "Ctrl+J",
-      icon: "󰁅",
-      iconFont: "",
-      help: "move selection down",
-      kind: "help-key"
-    },
-    {
-      key: "C-k",
-      name: "Ctrl+K",
-      icon: "󰁝",
-      iconFont: "",
-      help: "move selection up",
-      kind: "help-key"
-    },
-    {
-      key: "C-v",
-      name: "Super+V / Ctrl+V",
-      icon: "󰆏",
-      iconFont: "",
-      help: "paste clipboard into the query",
-      kind: "help-key"
-    }
-  ]
-}
-
 function mergeBangs(base, overlay) {
   var out = {}
   var key

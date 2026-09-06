@@ -54,7 +54,7 @@
    // Bound to the central [menu] section in shell.toml via Color.qml.
    // Each color already includes its alpha companion (composed in the
    // singleton), so consumers can drop them straight into a Rectangle.
-@@ -108,11 +139,25 @@
+@@ -108,11 +139,27 @@
    property int dividerHeight: Style.space(17)
    property bool searchDivider: false
    property int layoutSerial: 0
@@ -67,6 +67,8 @@
 +  readonly property bool pkgPane: root.pkgBang
 +  readonly property bool pkgDetailVisible: root.pkgPane && displayModel.count > 0
 +  property int pkgDetailHeight: Style.space(72)
++  readonly property bool helpPane: root.activeBang && root.activeBang.kind === "help"
++  property int helpNavHeight: Style.space(52)
 +  readonly property string selectedPkgDetail: {
 +    var _watch = root.layoutSerial
 +    if (!root.pkgDetailVisible || !root.cursorActive) return ""
@@ -78,11 +80,11 @@
    property int cardHeight: root.dmenuActive
      ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
 -    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
-+    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + (root.pkgDetailVisible ? contentSpacing + pkgDetailHeight : 0), panel.height - Style.gapsOut * 2)
++    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + (root.pkgDetailVisible ? contentSpacing + pkgDetailHeight : 0) + (root.helpPane ? contentSpacing + helpNavHeight : 0), panel.height - Style.gapsOut * 2)
  
    function finishRequest(selection) {
      if (!root.requestActive || !root.doneFile) {
-@@ -144,7 +189,394 @@
+@@ -144,7 +191,384 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
@@ -409,16 +411,6 @@
 +        displayModel.append(root.bangHelpRow(item, shown))
 +        shown += 1
 +      }
-+      var shortcuts = Bangs.helpShortcutRows()
-+      for (var s = 0; s < shortcuts.length; s++) {
-+        var shortcut = shortcuts[s]
-+        if (helpQuery) {
-+          var shortcutHay = (shortcut.key + " " + shortcut.name + " " + shortcut.help).toLowerCase()
-+          if (shortcutHay.indexOf(helpQuery) < 0) continue
-+        }
-+        displayModel.append(root.bangHelpRow(shortcut, shown))
-+        shown += 1
-+      }
 +    } else if (bang.kind === "web") {
 +      var choices = Bangs.webChoices(root.bangQuery, root.webAliases, root.searchProvider, Util.shellQuote)
 +      if (choices.length === 0) {
@@ -478,7 +470,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -607,6 +1039,10 @@
+@@ -607,6 +1031,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -489,7 +481,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1167,7 @@
+@@ -731,6 +1159,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -497,7 +489,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -757,7 +1194,7 @@
+@@ -757,7 +1186,7 @@
    }
  
    function activateIndex(index, fromPointer) {
@@ -506,7 +498,7 @@
      if (root.dmenuActive) {
        if (root.mode === "input") {
          root.applyDmenuSelection(root.filterText)
-@@ -772,7 +1209,22 @@
+@@ -772,7 +1201,22 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -530,7 +522,7 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -786,6 +1238,61 @@
+@@ -786,6 +1230,61 @@
      }
    }
  
@@ -592,7 +584,7 @@
    function requestDeleteSelected() {
      if (!root.cursorActive || root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return
      var row = displayModel.get(root.selectedIndex)
-@@ -824,6 +1331,7 @@
+@@ -824,6 +1323,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -600,7 +592,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1339,7 @@
+@@ -831,6 +1331,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -608,7 +600,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1351,7 @@
+@@ -842,6 +1343,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -616,7 +608,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1380,7 @@
+@@ -870,6 +1372,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -624,7 +616,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1492,129 @@
+@@ -981,6 +1484,129 @@
      onFileChanged: reload()
    }
  
@@ -754,7 +746,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1116,7 +1750,7 @@
+@@ -1116,7 +1742,7 @@
        Item {
          id: keyCatcher
          anchors.fill: parent
@@ -763,7 +755,7 @@
          focus: true
  
          Keys.priority: Keys.BeforeItem
-@@ -1125,24 +1759,56 @@
+@@ -1125,24 +1751,56 @@
              if (deleteConfirm.handleKey(event)) event.accepted = true
              return
            }
@@ -825,7 +817,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +1821,14 @@
+@@ -1155,11 +1813,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -841,7 +833,7 @@
              event.accepted = true
            }
          }
-@@ -1182,6 +1851,26 @@
+@@ -1182,6 +1843,26 @@
            onCanceled: root.cancelDelete()
            onConfirmed: root.confirmDelete()
          }
@@ -868,7 +860,7 @@
        }
  
        Column {
-@@ -1201,16 +1890,28 @@
+@@ -1201,16 +1882,28 @@
            Text {
              textFormat: Text.PlainText
              anchors.left: parent.left
@@ -900,7 +892,7 @@
          }
  
          Item {
-@@ -1224,6 +1925,7 @@
+@@ -1224,6 +1917,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -908,7 +900,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1261,16 +1963,19 @@
+@@ -1261,16 +1955,19 @@
                required property string action
                required property int childCount
                required property bool disabled
@@ -930,7 +922,7 @@
                radius: root.cornerRadius
                color: row.hasCursor ? root.selectedBackground : "transparent"
                borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
-@@ -1299,7 +2004,7 @@
+@@ -1299,7 +1996,7 @@
                  verticalAlignment: Text.AlignVCenter
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8)
@@ -939,7 +931,7 @@
                }
  
                Image {
-@@ -1316,7 +2021,7 @@
+@@ -1316,7 +2013,7 @@
                  asynchronous: true
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
@@ -948,7 +940,7 @@
                }
  
                Column {
-@@ -1328,27 +2033,57 @@
+@@ -1328,27 +2025,57 @@
                  anchors.verticalCenter: parent.verticalCenter
                  spacing: Style.space(3)
  
@@ -1016,7 +1008,7 @@
                    elide: Text.ElideRight
                  }
                }
-@@ -1358,7 +2093,7 @@
+@@ -1358,7 +2085,7 @@
                  width: Style.space(14)
                  anchors.right: parent.right
                  anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
@@ -1025,7 +1017,7 @@
                  spacing: 0
  
                  Text {
-@@ -1374,9 +2109,9 @@
+@@ -1374,9 +2101,9 @@
  
                  Text {
                    textFormat: Text.PlainText
@@ -1037,7 +1029,7 @@
                    font.family: root.fontFamily
                    font.pixelSize: Style.font.heading
                    font.weight: Font.Normal
-@@ -1447,7 +2182,17 @@
+@@ -1447,7 +2174,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -1055,7 +1047,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +2204,7 @@
+@@ -1459,7 +2196,7 @@
  
              Text {
                textFormat: Text.PlainText
@@ -1064,10 +1056,11 @@
                color: root.foreground
                opacity: 0.7
                font.family: root.fontFamily
-@@ -1470,6 +2215,35 @@
+@@ -1469,6 +2206,80 @@
+             }
            }
          }
- 
++
 +        Item {
 +          visible: root.pkgDetailVisible
 +          width: parent.width
@@ -1097,6 +1090,50 @@
 +          }
 +        }
 +
++        Item {
++          visible: root.helpPane
++          width: parent.width
++          height: visible ? root.helpNavHeight : 0
++          clip: true
++
++          Rectangle {
++            anchors.left: parent.left
++            anchors.right: parent.right
++            anchors.top: parent.top
++            height: Style.spacing.hairline
++            color: Util.alpha(root.foreground, 0.2)
++          }
++
++          Column {
++            anchors.fill: parent
++            anchors.topMargin: Style.space(8)
++            spacing: Style.space(3)
++
++            Text {
++              textFormat: Text.PlainText
++              width: parent.width
++              text: "Navigation"
++              color: root.foreground
++              opacity: 0.5
++              font.family: root.fontFamily
++              font.pixelSize: Style.font.caption
++              font.weight: Font.Medium
++            }
++
++            Text {
++              textFormat: Text.PlainText
++              width: parent.width
++              text: "Ctrl+J / Ctrl+K  down / up     Super+V / Ctrl+V  paste"
++              color: root.foreground
++              opacity: 0.62
++              font.family: root.fontFamily
++              font.pixelSize: Style.font.bodySmall
++              wrapMode: Text.WordWrap
++              maximumLineCount: 2
++              elide: Text.ElideRight
++            }
++          }
++        }
+ 
          Item {
            width: parent.width
-           height: 0
