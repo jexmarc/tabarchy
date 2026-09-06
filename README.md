@@ -2,7 +2,12 @@
 
 <img src="preview.png" width="500" alt="Tabarchy help menu">
 
-Single-letter Tab commands on Omarchy's Super+Space menu.
+## Why
+
+This is an opinionated quick-command methodology that enhances the existing
+Omarchy Super+Space menu. As a long-time Unix/Linux person I've developed a
+muscle memory for tab-completion keypresses. This brings that front and
+center to the Omarchy menu without changing the default behavior (too much).
 
 Normal typing still fuzzy-searches apps and the Omarchy command tree. Tab is a
 toggle: one letter plus Tab switches into a command, and Tab again returns to
