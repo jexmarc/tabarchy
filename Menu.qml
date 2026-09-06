@@ -78,9 +78,13 @@ Item {
   property int bangFilesGeneration: 0
   property var bangPkgRows: []
   property int bangPkgGeneration: 0
+  property bool bangPkgSearching: false
   readonly property string pluginDir: {
     var dir = root.manifest && root.manifest.__sourceDir ? String(root.manifest.__sourceDir) : ""
-    return dir.replace(/\/$/, "")
+    if (dir) return dir.replace(/\/$/, "")
+    var url = String(Qt.resolvedUrl("."))
+    if (url.indexOf("file://") === 0) url = decodeURIComponent(url.substring(7))
+    return url.replace(/\/$/, "")
   }
   property int selectedIndex: 0
   property bool cursorActive: false
@@ -170,6 +174,7 @@ Item {
     root.bangQuery = ""
     root.bangFileRows = []
     root.bangPkgRows = []
+    root.bangPkgSearching = false
     root.bangFilesGeneration += 1
     root.bangPkgGeneration += 1
     bangFilesProc.running = false
@@ -195,7 +200,10 @@ Item {
     root.cursorActive = (bang.kind !== "files" && bang.kind !== "packages") || !!root.bangQuery
     root.disarmPointer()
     if (bang.kind === "files") root.scheduleBangFiles()
-    if (bang.kind === "packages") root.scheduleBangPackages()
+    if (bang.kind === "packages") {
+      root.bangPkgSearching = root.bangQuery.trim().length >= 2
+      root.scheduleBangPackages()
+    }
     root.rebuildDisplay()
   }
 
@@ -255,14 +263,19 @@ Item {
     root.cursorActive = true
     root.disarmPointer()
     if (root.activeBang && root.activeBang.kind === "files") root.scheduleBangFiles()
-    if (root.activeBang && root.activeBang.kind === "packages") root.scheduleBangPackages()
+    if (root.activeBang && root.activeBang.kind === "packages") {
+      root.bangPkgSearching = nextQuery.trim().length >= 2
+      root.scheduleBangPackages()
+    }
     root.rebuildDisplay()
   }
 
   function bangEmptyText() {
     if (!root.activeBang) return ""
-    if (root.activeBang.kind === "packages" && root.bangQuery.trim().length === 1)
-      return "Type at least two characters"
+    if (root.activeBang.kind === "packages") {
+      if (root.bangQuery.trim().length < 2) return "Type at least two characters"
+      if (root.bangPkgSearching) return "Searching Arch, Omarchy, and AUR…"
+    }
     if (root.bangQuery) return "No matches for “" + root.bangQuery + "”"
     if (root.activeBang.placeholder) return "Type " + root.activeBang.placeholder
     return "Type to continue"
@@ -309,18 +322,24 @@ Item {
   function startBangPackages() {
     if (!root.activeBang || root.activeBang.kind !== "packages") return
     var query = root.bangQuery.trim()
+    var script = root.pluginDir + "/bin/tabarchy-pkg-search"
     root.bangPkgGeneration += 1
+    var generation = root.bangPkgGeneration
     bangPkgProc.running = false
-    if (query.length < 2 || !root.pluginDir) {
+    if (query.length < 2) {
+      root.bangPkgSearching = false
       root.bangPkgRows = []
       root.rebuildDisplay()
       return
     }
 
-    bangPkgProc.generation = root.bangPkgGeneration
-    bangPkgProc.collected = ""
-    bangPkgProc.command = [root.pluginDir + "/bin/tabarchy-pkg-search", query]
-    bangPkgProc.running = true
+    root.bangPkgSearching = true
+    bangPkgProc.generation = generation
+    bangPkgProc.command = ["/usr/bin/python3", script, query]
+    Qt.callLater(function() {
+      if (bangPkgProc.generation !== root.bangPkgGeneration) return
+      bangPkgProc.running = true
+    })
   }
 
   function bangFileRow(path, index) {
@@ -1353,21 +1372,29 @@ Item {
 
   Process {
     id: bangPkgProc
-    property string collected: ""
     property int generation: 0
-    stdout: SplitParser {
-      onRead: function(data) { bangPkgProc.collected += data + "\n" }
+    stdout: StdioCollector {
+      id: bangPkgOut
+      waitForEnd: true
     }
-    onExited: {
+    stderr: StdioCollector {
+      id: bangPkgErr
+      waitForEnd: true
+    }
+    onExited: function(exitCode) {
       if (bangPkgProc.generation !== root.bangPkgGeneration) return
       if (!root.activeBang || root.activeBang.kind !== "packages") return
+      root.bangPkgSearching = false
+      var text = bangPkgOut.text || ""
       var rows = []
-      var lines = bangPkgProc.collected.split("\n")
+      var lines = text.split("\n")
       for (var i = 0; i < lines.length; i++) {
         var line = lines[i]
         if (line) rows.push(line)
       }
       root.bangPkgRows = rows
+      if (exitCode !== 0 && bangPkgErr.text)
+        console.warn("tabarchy-pkg-search:", String(bangPkgErr.text).trim())
       root.rebuildDisplay()
     }
   }

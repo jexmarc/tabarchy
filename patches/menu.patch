@@ -11,7 +11,7 @@
  
  Item {
    id: root
-@@ -64,6 +68,20 @@
+@@ -64,6 +68,24 @@
    property bool rowsLoaded: false
    property string activeMenu: "root"
    property string filterText: ""
@@ -25,14 +25,18 @@
 +  property int bangFilesGeneration: 0
 +  property var bangPkgRows: []
 +  property int bangPkgGeneration: 0
++  property bool bangPkgSearching: false
 +  readonly property string pluginDir: {
 +    var dir = root.manifest && root.manifest.__sourceDir ? String(root.manifest.__sourceDir) : ""
-+    return dir.replace(/\/$/, "")
++    if (dir) return dir.replace(/\/$/, "")
++    var url = String(Qt.resolvedUrl("."))
++    if (url.indexOf("file://") === 0) url = decodeURIComponent(url.substring(7))
++    return url.replace(/\/$/, "")
 +  }
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -144,7 +162,272 @@
+@@ -144,7 +166,287 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
@@ -45,6 +49,7 @@
 +    root.bangQuery = ""
 +    root.bangFileRows = []
 +    root.bangPkgRows = []
++    root.bangPkgSearching = false
 +    root.bangFilesGeneration += 1
 +    root.bangPkgGeneration += 1
 +    bangFilesProc.running = false
@@ -70,7 +75,10 @@
 +    root.cursorActive = (bang.kind !== "files" && bang.kind !== "packages") || !!root.bangQuery
 +    root.disarmPointer()
 +    if (bang.kind === "files") root.scheduleBangFiles()
-+    if (bang.kind === "packages") root.scheduleBangPackages()
++    if (bang.kind === "packages") {
++      root.bangPkgSearching = root.bangQuery.trim().length >= 2
++      root.scheduleBangPackages()
++    }
 +    root.rebuildDisplay()
 +  }
 +
@@ -130,14 +138,19 @@
 +    root.cursorActive = true
 +    root.disarmPointer()
 +    if (root.activeBang && root.activeBang.kind === "files") root.scheduleBangFiles()
-+    if (root.activeBang && root.activeBang.kind === "packages") root.scheduleBangPackages()
++    if (root.activeBang && root.activeBang.kind === "packages") {
++      root.bangPkgSearching = nextQuery.trim().length >= 2
++      root.scheduleBangPackages()
++    }
 +    root.rebuildDisplay()
 +  }
 +
 +  function bangEmptyText() {
 +    if (!root.activeBang) return ""
-+    if (root.activeBang.kind === "packages" && root.bangQuery.trim().length === 1)
-+      return "Type at least two characters"
++    if (root.activeBang.kind === "packages") {
++      if (root.bangQuery.trim().length < 2) return "Type at least two characters"
++      if (root.bangPkgSearching) return "Searching Arch, Omarchy, and AUR…"
++    }
 +    if (root.bangQuery) return "No matches for “" + root.bangQuery + "”"
 +    if (root.activeBang.placeholder) return "Type " + root.activeBang.placeholder
 +    return "Type to continue"
@@ -184,18 +197,24 @@
 +  function startBangPackages() {
 +    if (!root.activeBang || root.activeBang.kind !== "packages") return
 +    var query = root.bangQuery.trim()
++    var script = root.pluginDir + "/bin/tabarchy-pkg-search"
 +    root.bangPkgGeneration += 1
++    var generation = root.bangPkgGeneration
 +    bangPkgProc.running = false
-+    if (query.length < 2 || !root.pluginDir) {
++    if (query.length < 2) {
++      root.bangPkgSearching = false
 +      root.bangPkgRows = []
 +      root.rebuildDisplay()
 +      return
 +    }
 +
-+    bangPkgProc.generation = root.bangPkgGeneration
-+    bangPkgProc.collected = ""
-+    bangPkgProc.command = [root.pluginDir + "/bin/tabarchy-pkg-search", query]
-+    bangPkgProc.running = true
++    root.bangPkgSearching = true
++    bangPkgProc.generation = generation
++    bangPkgProc.command = ["/usr/bin/python3", script, query]
++    Qt.callLater(function() {
++      if (bangPkgProc.generation !== root.bangPkgGeneration) return
++      bangPkgProc.running = true
++    })
 +  }
 +
 +  function bangFileRow(path, index) {
@@ -306,7 +325,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -607,6 +890,10 @@
+@@ -607,6 +909,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -317,7 +336,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1018,7 @@
+@@ -731,6 +1037,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -325,7 +344,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -772,7 +1060,17 @@
+@@ -772,7 +1079,17 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -344,7 +363,7 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -824,6 +1122,7 @@
+@@ -824,6 +1141,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -352,7 +371,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1130,7 @@
+@@ -831,6 +1149,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -360,7 +379,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1142,7 @@
+@@ -842,6 +1161,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -368,7 +387,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1171,7 @@
+@@ -870,6 +1190,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -376,7 +395,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1283,95 @@
+@@ -981,6 +1302,103 @@
      onFileChanged: reload()
    }
  
@@ -450,21 +469,29 @@
 +
 +  Process {
 +    id: bangPkgProc
-+    property string collected: ""
 +    property int generation: 0
-+    stdout: SplitParser {
-+      onRead: function(data) { bangPkgProc.collected += data + "\n" }
++    stdout: StdioCollector {
++      id: bangPkgOut
++      waitForEnd: true
 +    }
-+    onExited: {
++    stderr: StdioCollector {
++      id: bangPkgErr
++      waitForEnd: true
++    }
++    onExited: function(exitCode) {
 +      if (bangPkgProc.generation !== root.bangPkgGeneration) return
 +      if (!root.activeBang || root.activeBang.kind !== "packages") return
++      root.bangPkgSearching = false
++      var text = bangPkgOut.text || ""
 +      var rows = []
-+      var lines = bangPkgProc.collected.split("\n")
++      var lines = text.split("\n")
 +      for (var i = 0; i < lines.length; i++) {
 +        var line = lines[i]
 +        if (line) rows.push(line)
 +      }
 +      root.bangPkgRows = rows
++      if (exitCode !== 0 && bangPkgErr.text)
++        console.warn("tabarchy-pkg-search:", String(bangPkgErr.text).trim())
 +      root.rebuildDisplay()
 +    }
 +  }
@@ -472,7 +499,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1130,15 +1521,30 @@
+@@ -1130,15 +1548,30 @@
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -505,7 +532,7 @@
            } else if (event.key === Qt.Key_Up) {
              root.select(-1)
              event.accepted = true
-@@ -1155,11 +1561,14 @@
+@@ -1155,11 +1588,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -521,7 +548,7 @@
              event.accepted = true
            }
          }
-@@ -1203,9 +1612,9 @@
+@@ -1203,9 +1639,9 @@
              anchors.left: parent.left
              anchors.right: parent.right
              anchors.verticalCenter: parent.verticalCenter
@@ -533,7 +560,7 @@
              font.family: root.fontFamily
              font.pixelSize: Style.font.heading
              elide: Text.ElideRight
-@@ -1344,7 +1753,7 @@
+@@ -1344,7 +1780,7 @@
                    textFormat: Text.PlainText
                    width: parent.width
                    text: row.detail
@@ -542,7 +569,7 @@
                    color: root.foreground
                    opacity: 0.52
                    font.family: root.fontFamily
-@@ -1459,7 +1868,7 @@
+@@ -1459,7 +1895,7 @@
  
              Text {
                textFormat: Text.PlainText
