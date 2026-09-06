@@ -202,7 +202,9 @@ That is a stand-in, not a second launcher. Tabarchy-specific code is `Bangs.js`,
 is Omarchy's menu plus that patch.
 
 `omarchy plugin update io.github.jexmarc.tabarchy` fast-forwards **this** git
-repo. It does not pull Omarchy menu fixes. After an Omarchy update, rebase the
+repo. It does not pull Omarchy menu fixes. The menu stays loaded in
+`omarchy-shell`, so after an update run `omarchy restart shell` or Super+Space
+will still be the previous Tabarchy. After an Omarchy update, rebase the
 stand-in onto the new menu:
 
 ```bash
