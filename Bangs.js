@@ -91,7 +91,8 @@ function defaultWebAliases() {
   return {
     amazon: { key: "amazon", name: "amazon", url: "https://amazon.com/" },
     discord: { key: "discord", name: "discord", url: "https://discord.com/" },
-    gh: { key: "gh", name: "gh", url: "https://github.com/" }
+    gh: { key: "gh", name: "gh", url: "https://github.com/" },
+    op: { key: "op", name: "op", url: "https://plugins.omarchy.org/" }
   }
 }
 

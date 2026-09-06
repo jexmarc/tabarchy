@@ -20,8 +20,9 @@ gh
 Enter
 ```
 
-opens GitHub in your default browser (`amazon` and `discord` are aliases too;
-anything that looks like a URL opens as one, otherwise it searches the web).
+opens GitHub in your default browser (`amazon`, `discord`, and `op` for the
+Omarchy plugins site are aliases too; anything that looks like a URL opens as
+one, otherwise it searches the web).
 
 ```
 Super+Space
@@ -183,22 +184,25 @@ The list filters as you type:
 2. **Open URL** when the query looks like a URL (`amazon.com`, `https://…`)
 3. **Search** with the configured provider (Google by default)
 
-Default aliases: `amazon` → amazon.com, `discord` → discord.com, `gh` →
-github.com. Add or disable aliases in `~/.config/omarchy/tabarchy.jsonc`
-(watched live):
+Default aliases are a starting set, meant to be customized for your own
+workflow: `amazon` → amazon.com, `discord` → discord.com, `gh` → github.com,
+`op` → plugins.omarchy.org. Add, replace, or disable them in
+`~/.config/omarchy/tabarchy.jsonc` (watched live):
 
 ```jsonc
 {
   "aliases": {
     "amazon": "https://amazon.com/",
     "discord": "https://discord.com/",
-    "gh": "https://github.com/"
+    "gh": "https://github.com/",
+    "op": "https://plugins.omarchy.org/"
   }
 }
 ```
 
 Set an alias to `false` to drop a default. `https://` is added if you omit it.
-Tabarchy does not read browser bookmarks.
+Treat this list as shortcuts for the sites you actually open. Tabarchy does
+not read browser bookmarks.
 
 The search provider is `~/.config/omarchy/defaults/search`. Enabling the plugin
 puts `omarchy-tabarchy-search` on your PATH (`~/.local/bin`). That symlink is

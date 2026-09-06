@@ -57,6 +57,7 @@
   "aliases": {
     "amazon": "https://amazon.com/",
     "discord": "https://discord.com/",
-    "gh": "https://github.com/"
+    "gh": "https://github.com/",
+    "op": "https://plugins.omarchy.org/"
   }
 }
