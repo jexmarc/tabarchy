@@ -58,6 +58,12 @@ Two or more characters never trigger a command, so `ma` still searches the menu.
 `w Tab` opens a URL when the query looks like one (`amazon.com`, `https://…`).
 Anything else is a web search. The default provider is Google.
 
+Enabling the plugin puts `omarchy-tabarchy-search` on your PATH. The command
+ships in the plugin at `bin/omarchy-tabarchy-search`. The stock `omarchy`
+dispatcher only loads packaged binaries, so this is the plugin CLI rather
+than `omarchy tabarchy search`. The value is stored in
+`~/.config/omarchy/defaults/search` and the menu picks it up live.
+
 ```
 omarchy-tabarchy-search                 # print current provider
 omarchy-tabarchy-search google
@@ -66,16 +72,6 @@ omarchy-tabarchy-search brave
 omarchy-tabarchy-search --list
 omarchy-tabarchy-search 'https://example.com/search?q=%s'
 ```
-
-After installing the plugin, put that command on your PATH:
-
-```bash
-ln -sf ~/.config/omarchy/plugins/tabarchy/bin/omarchy-tabarchy-search ~/.local/bin/omarchy-tabarchy-search
-```
-
-The stock `omarchy` dispatcher only loads packaged commands, so this is
-`omarchy-tabarchy-search` rather than `omarchy tabarchy search`. The value is
-stored in `~/.config/omarchy/defaults/search` and the menu picks it up live.
 
 ## Configure
 

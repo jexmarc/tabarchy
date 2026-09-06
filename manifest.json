@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "tabarchy",
   "name": "Tabarchy",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "mgallagher",
   "license": "MIT",
   "description": "Super+Space menu with single-letter Tab commands for maps, URLs, files, and anything you configure.",
@@ -16,12 +16,14 @@
   ],
   "kinds": [
     "menu",
-    "bar-widget"
+    "bar-widget",
+    "service"
   ],
   "keepLoaded": true,
   "entryPoints": {
     "menu": "Menu.qml",
-    "barWidget": "BarWidget.qml"
+    "barWidget": "BarWidget.qml",
+    "service": "Service.qml"
   },
   "barWidget": {
     "displayName": "Tabarchy",
