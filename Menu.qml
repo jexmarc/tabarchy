@@ -318,7 +318,7 @@ Item {
 
   function headerText() {
     if (root.activeBang)
-      return root.bangQuery ? root.activeBang.name + " " + root.bangQuery : root.activeBang.name + "…"
+      return "Tabarchy " + root.activeBang.name + ":" + (root.bangQuery ? " " + root.bangQuery : "")
     if (root.filterText) return root.filterText
     if (root.dmenuActive) return root.dmenuPrompt + "…"
     var current = root.item(root.activeMenu)
