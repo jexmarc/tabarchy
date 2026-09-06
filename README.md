@@ -107,9 +107,9 @@ All of these start from Super+Space, then **one letter + Tab**.
 
 | Type | Tab | Then |
 |---|---|---|
-| `m` | maps | an address, Enter |
 | `w` | web | a URL, an alias, **or** a search, Enter |
 | `f` | files | a filename; Enter opens, `'` shows in Files |
+| `m` | maps | an address, Enter |
 | `i` | install | a package name (2+ chars); pick a result, Enter to install |
 | `r` | remove | an installed package (2+ chars); pick a result, Enter to uninstall |
 | `?` | help | the command list plus keys; Enter opens the highlighted command |

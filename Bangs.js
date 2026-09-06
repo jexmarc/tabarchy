@@ -391,7 +391,7 @@ function bangHelpText(bang) {
 }
 
 function helpKeys(bangs) {
-  var preferred = ["m", "w", "f", "i", "r"]
+  var preferred = ["w", "f", "m", "i", "r"]
   var keys = []
   var seen = {}
   var i
