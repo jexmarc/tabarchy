@@ -1,5 +1,7 @@
 # Tabarchy
 
+<img src="preview-sm.png" width="300" alt="Tabarchy help menu">
+
 Single-letter Tab commands on Omarchy's Super+Space menu.
 
 Normal typing still fuzzy-searches apps and the Omarchy command tree. Tab is a
