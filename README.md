@@ -191,9 +191,11 @@ Placeholders in `action`:
 
 `"kind": "files"` lists `fd` matches under `$HOME` instead of running a command.
 The menu is double-wide so longer filenames and paths stay readable.
-Enter uses a GUI app when one is registered; markdown and other text open
-in the Omarchy editor (`nvim` in a terminal by default) because `xdg-open`
-cannot attach a terminal from this overlay.
+Enter uses a GUI app when one is registered. Markdown asks View or Edit
+(View is the default; `V` / `E` also work). View opens Omawrite, or the
+Omarchy editor if Omawrite is missing. Edit always uses the Omarchy editor.
+Other text still opens in the editor because `xdg-open` cannot attach a
+terminal from this overlay.
 `"kind": "help"` lists every enabled command (`? Tab`). Enter on a row
 opens that command. `"kind": "web"` lists aliases, opens a URL, or falls back to the configured search provider.
 Top-level `"aliases"` (or `"aliases"` on the web command) maps names to URLs.

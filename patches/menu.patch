@@ -38,7 +38,23 @@
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -108,11 +132,25 @@
+@@ -80,7 +104,14 @@
+   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
+   property bool deleteConfirmOpen: false
+   property var deleteTarget: null
+-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
++  property bool mdOpenOpen: false
++  property string mdOpenPath: ""
++  onOpenedChanged: if (!opened) {
++    deleteConfirmOpen = false
++    deleteTarget = null
++    mdOpenOpen = false
++    mdOpenPath = ""
++  }
+   // Bound to the central [menu] section in shell.toml via Color.qml.
+   // Each color already includes its alpha companion (composed in the
+   // singleton), so consumers can drop them straight into a Rectangle.
+@@ -108,11 +139,25 @@
    property int dividerHeight: Style.space(17)
    property bool searchDivider: false
    property int layoutSerial: 0
@@ -66,7 +82,7 @@
  
    function finishRequest(selection) {
      if (!root.requestActive || !root.doneFile) {
-@@ -144,7 +182,383 @@
+@@ -144,7 +189,383 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
@@ -451,7 +467,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -607,6 +1021,10 @@
+@@ -607,6 +1028,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -462,7 +478,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1149,7 @@
+@@ -731,6 +1156,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -470,7 +486,16 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -772,7 +1191,20 @@
+@@ -757,7 +1183,7 @@
+   }
+ 
+   function activateIndex(index, fromPointer) {
+-    if (root.deleteConfirmOpen) return
++    if (root.deleteConfirmOpen || root.mdOpenOpen) return
+     if (root.dmenuActive) {
+       if (root.mode === "input") {
+         root.applyDmenuSelection(root.filterText)
+@@ -772,7 +1198,22 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -481,18 +506,61 @@
 +      var next = root.bangLookup(row.target)
 +      if (next && next.kind !== "help") root.enterBang(next)
 +    } else if (row.kind === "bang-file") {
-+      applySerial = requestSerial
-+      opened = false
-+      root.clearBang()
-+      filterText = ""
-+      Util.execArgv([root.pluginDir + "/bin/tabarchy-open", row.action])
++      if (root.isMarkdownPath(row.action)) {
++        root.mdOpenPath = row.action
++        mdChoice.selectedIndex = 1
++        root.mdOpenOpen = true
++        return
++      }
++      root.openFilePath(row.action, "")
 +    } else if (row.kind === "bang-pkg") {
 +      root.applySelected(row.itemId, row.action)
 +    } else if (row.kind === "menu" || row.kind === "link") {
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -824,6 +1256,7 @@
+@@ -786,6 +1227,40 @@
+     }
+   }
+ 
++  function isMarkdownPath(path) {
++    var name = String(path || "").toLowerCase()
++    return /\.(md|markdown|mkd|mdown|mdwn)$/.test(name)
++  }
++
++  function openFilePath(path, mode) {
++    if (!path) return
++    applySerial = requestSerial
++    opened = false
++    root.clearBang()
++    filterText = ""
++    if (mode === "edit" || mode === "view")
++      Util.execArgv([root.pluginDir + "/bin/tabarchy-open", "--" + mode, path])
++    else
++      Util.execArgv([root.pluginDir + "/bin/tabarchy-open", path])
++  }
++
++  function cancelMdOpen() {
++    root.mdOpenOpen = false
++    root.mdOpenPath = ""
++    mdChoice.selectedIndex = 1
++    root.disarmPointer()
++    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
++  }
++
++  function confirmMdOpen(index) {
++    var path = root.mdOpenPath
++    var mode = index === 0 ? "edit" : "view"
++    root.mdOpenOpen = false
++    root.mdOpenPath = ""
++    mdChoice.selectedIndex = 1
++    root.openFilePath(path, mode)
++  }
++
+   function requestDeleteSelected() {
+     if (!root.cursorActive || root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return
+     var row = displayModel.get(root.selectedIndex)
+@@ -824,6 +1299,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -500,7 +568,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1264,7 @@
+@@ -831,6 +1307,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -508,7 +576,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1276,7 @@
+@@ -842,6 +1319,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -516,7 +584,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1305,7 @@
+@@ -870,6 +1348,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -524,7 +592,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1417,129 @@
+@@ -981,6 +1460,129 @@
      onFileChanged: reload()
    }
  
@@ -654,7 +722,35 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1130,19 +1689,34 @@
+@@ -1116,7 +1718,7 @@
+       Item {
+         id: keyCatcher
+         anchors.fill: parent
+-        z: root.deleteConfirmOpen ? 20 : 0
++        z: (root.deleteConfirmOpen || root.mdOpenOpen) ? 20 : 0
+         focus: true
+ 
+         Keys.priority: Keys.BeforeItem
+@@ -1125,24 +1727,53 @@
+             if (deleteConfirm.handleKey(event)) event.accepted = true
+             return
+           }
++          if (root.mdOpenOpen) {
++            if (event.key === Qt.Key_V) {
++              root.confirmMdOpen(1)
++              event.accepted = true
++              return
++            }
++            if (event.key === Qt.Key_E) {
++              root.confirmMdOpen(0)
++              event.accepted = true
++              return
++            }
++            if (mdChoice.handleKey(event)) event.accepted = true
++            return
++          }
+ 
+           if (event.key === Qt.Key_Delete) {
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -693,7 +789,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +1729,14 @@
+@@ -1155,11 +1786,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -709,7 +805,34 @@
              event.accepted = true
            }
          }
-@@ -1201,16 +1778,28 @@
+@@ -1182,6 +1816,26 @@
+           onCanceled: root.cancelDelete()
+           onConfirmed: root.confirmDelete()
+         }
++
++        ChoiceDialog {
++          id: mdChoice
++
++          anchors.fill: parent
++          opened: root.mdOpenOpen
++          z: 10
++          message: "View or edit " + Bangs.fileLabel(root.mdOpenPath) + "?"
++          leftText: "Edit"
++          rightText: "View"
++          background: root.background
++          foreground: root.foreground
++          scrim: root.scrim
++          selectedBackground: root.selectedBackground
++          selectedText: root.selectedText
++          fontFamily: root.fontFamily
++          cornerRadius: root.cornerRadius
++          onDismissed: root.cancelMdOpen()
++          onPicked: function(index) { root.confirmMdOpen(index) }
++        }
+       }
+ 
+       Column {
+@@ -1201,16 +1855,28 @@
            Text {
              textFormat: Text.PlainText
              anchors.left: parent.left
@@ -741,7 +864,7 @@
          }
  
          Item {
-@@ -1224,6 +1813,7 @@
+@@ -1224,6 +1890,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -749,7 +872,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1261,16 +1851,19 @@
+@@ -1261,16 +1928,19 @@
                required property string action
                required property int childCount
                required property bool disabled
@@ -771,7 +894,7 @@
                radius: root.cornerRadius
                color: row.hasCursor ? root.selectedBackground : "transparent"
                borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
-@@ -1299,7 +1892,7 @@
+@@ -1299,7 +1969,7 @@
                  verticalAlignment: Text.AlignVCenter
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8)
@@ -780,7 +903,7 @@
                }
  
                Image {
-@@ -1316,7 +1909,7 @@
+@@ -1316,7 +1986,7 @@
                  asynchronous: true
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
@@ -789,7 +912,7 @@
                }
  
                Column {
-@@ -1328,27 +1921,57 @@
+@@ -1328,27 +1998,57 @@
                  anchors.verticalCenter: parent.verticalCenter
                  spacing: Style.space(3)
  
@@ -857,7 +980,7 @@
                    elide: Text.ElideRight
                  }
                }
-@@ -1358,7 +1981,7 @@
+@@ -1358,7 +2058,7 @@
                  width: Style.space(14)
                  anchors.right: parent.right
                  anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
@@ -866,7 +989,7 @@
                  spacing: 0
  
                  Text {
-@@ -1374,9 +1997,9 @@
+@@ -1374,9 +2074,9 @@
  
                  Text {
                    textFormat: Text.PlainText
@@ -878,7 +1001,7 @@
                    font.family: root.fontFamily
                    font.pixelSize: Style.font.heading
                    font.weight: Font.Normal
-@@ -1447,7 +2070,17 @@
+@@ -1447,7 +2147,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -896,7 +1019,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +2092,7 @@
+@@ -1459,7 +2169,7 @@
  
              Text {
                textFormat: Text.PlainText
@@ -905,7 +1028,7 @@
                color: root.foreground
                opacity: 0.7
                font.family: root.fontFamily
-@@ -1470,6 +2103,35 @@
+@@ -1470,6 +2180,35 @@
            }
          }
  

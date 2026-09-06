@@ -1,10 +1,17 @@
 #!/bin/bash
 # Open a file from f Tab.
-# GUI handlers (images, PDFs, omawrite, the file manager) go through xdg-open.
+# GUI handlers (images, PDFs, the file manager) go through xdg-open.
 # Terminal handlers such as nvim.desktop do nothing from the menu overlay,
 # so those — and types with no app — open in the Omarchy editor instead.
+# Markdown defaults to view in omawrite, with --edit for the text editor.
 
 set -u
+
+mode=
+if [[ ${1-} == --view || ${1-} == --edit ]]; then
+  mode=${1#--}
+  shift
+fi
 
 path=${1-}
 if [[ -z $path ]]; then
@@ -35,7 +42,34 @@ terminal_handler() {
   grep -qi '^Terminal=true' "$file"
 }
 
+is_markdown() {
+  local lower=${path,,}
+  case $lower in
+    *.md|*.markdown|*.mkd|*.mdown|*.mdwn) return 0 ;;
+  esac
+  case ${1-} in
+    text/markdown|text/x-markdown) return 0 ;;
+  esac
+  return 1
+}
+
+open_view() {
+  if command -v omawrite >/dev/null 2>&1; then
+    exec uwsm-app -- omawrite "$path"
+  fi
+  exec omarchy-launch-editor "$path"
+}
+
 mime=$(xdg-mime query filetype "$path" 2>/dev/null || true)
+
+if [[ $mode == edit ]]; then
+  exec omarchy-launch-editor "$path"
+fi
+
+if [[ $mode == view ]] || is_markdown "$mime"; then
+  open_view
+fi
+
 desktop=$(xdg-mime query default "$mime" 2>/dev/null || true)
 
 if [[ -n $desktop ]] && ! terminal_handler "$desktop"; then

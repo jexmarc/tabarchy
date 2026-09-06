@@ -104,7 +104,14 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  property bool mdOpenOpen: false
+  property string mdOpenPath: ""
+  onOpenedChanged: if (!opened) {
+    deleteConfirmOpen = false
+    deleteTarget = null
+    mdOpenOpen = false
+    mdOpenPath = ""
+  }
   // Bound to the central [menu] section in shell.toml via Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -1176,7 +1183,7 @@ Item {
   }
 
   function activateIndex(index, fromPointer) {
-    if (root.deleteConfirmOpen) return
+    if (root.deleteConfirmOpen || root.mdOpenOpen) return
     if (root.dmenuActive) {
       if (root.mode === "input") {
         root.applyDmenuSelection(root.filterText)
@@ -1197,11 +1204,13 @@ Item {
       var next = root.bangLookup(row.target)
       if (next && next.kind !== "help") root.enterBang(next)
     } else if (row.kind === "bang-file") {
-      applySerial = requestSerial
-      opened = false
-      root.clearBang()
-      filterText = ""
-      Util.execArgv([root.pluginDir + "/bin/tabarchy-open", row.action])
+      if (root.isMarkdownPath(row.action)) {
+        root.mdOpenPath = row.action
+        mdChoice.selectedIndex = 1
+        root.mdOpenOpen = true
+        return
+      }
+      root.openFilePath(row.action, "")
     } else if (row.kind === "bang-pkg") {
       root.applySelected(row.itemId, row.action)
     } else if (row.kind === "menu" || row.kind === "link") {
@@ -1216,6 +1225,40 @@ Item {
     } else {
       root.applySelected(row.itemId, row.action)
     }
+  }
+
+  function isMarkdownPath(path) {
+    var name = String(path || "").toLowerCase()
+    return /\.(md|markdown|mkd|mdown|mdwn)$/.test(name)
+  }
+
+  function openFilePath(path, mode) {
+    if (!path) return
+    applySerial = requestSerial
+    opened = false
+    root.clearBang()
+    filterText = ""
+    if (mode === "edit" || mode === "view")
+      Util.execArgv([root.pluginDir + "/bin/tabarchy-open", "--" + mode, path])
+    else
+      Util.execArgv([root.pluginDir + "/bin/tabarchy-open", path])
+  }
+
+  function cancelMdOpen() {
+    root.mdOpenOpen = false
+    root.mdOpenPath = ""
+    mdChoice.selectedIndex = 1
+    root.disarmPointer()
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function confirmMdOpen(index) {
+    var path = root.mdOpenPath
+    var mode = index === 0 ? "edit" : "view"
+    root.mdOpenOpen = false
+    root.mdOpenPath = ""
+    mdChoice.selectedIndex = 1
+    root.openFilePath(path, mode)
   }
 
   function requestDeleteSelected() {
@@ -1675,13 +1718,27 @@ Item {
       Item {
         id: keyCatcher
         anchors.fill: parent
-        z: root.deleteConfirmOpen ? 20 : 0
+        z: (root.deleteConfirmOpen || root.mdOpenOpen) ? 20 : 0
         focus: true
 
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
           if (root.deleteConfirmOpen) {
             if (deleteConfirm.handleKey(event)) event.accepted = true
+            return
+          }
+          if (root.mdOpenOpen) {
+            if (event.key === Qt.Key_V) {
+              root.confirmMdOpen(1)
+              event.accepted = true
+              return
+            }
+            if (event.key === Qt.Key_E) {
+              root.confirmMdOpen(0)
+              event.accepted = true
+              return
+            }
+            if (mdChoice.handleKey(event)) event.accepted = true
             return
           }
 
@@ -1758,6 +1815,26 @@ Item {
           cornerRadius: root.cornerRadius
           onCanceled: root.cancelDelete()
           onConfirmed: root.confirmDelete()
+        }
+
+        ChoiceDialog {
+          id: mdChoice
+
+          anchors.fill: parent
+          opened: root.mdOpenOpen
+          z: 10
+          message: "View or edit " + Bangs.fileLabel(root.mdOpenPath) + "?"
+          leftText: "Edit"
+          rightText: "View"
+          background: root.background
+          foreground: root.foreground
+          scrim: root.scrim
+          selectedBackground: root.selectedBackground
+          selectedText: root.selectedText
+          fontFamily: root.fontFamily
+          cornerRadius: root.cornerRadius
+          onDismissed: root.cancelMdOpen()
+          onPicked: function(index) { root.confirmMdOpen(index) }
         }
       }
 
