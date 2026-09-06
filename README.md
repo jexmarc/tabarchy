@@ -308,5 +308,5 @@ patch is updated for that Omarchy version.
 
 ## License
 
-MIT. Menu files derived from Omarchy's `omarchy.menu` (David Heinemeier Hansson).
-Tabarchy additions © 2026 jexmarc.
+MIT. See `LICENSE` and `NOTICE`. Menu files derived from Omarchy's
+`omarchy.menu` (David Heinemeier Hansson). Tabarchy additions © 2026 jexmarc.

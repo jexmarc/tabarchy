@@ -5,15 +5,16 @@
   "version": "1.9.0",
   "author": "jexmarc",
   "license": "MIT",
-  "description": "Super+Space menu with single-letter Tab commands for maps, URLs, files, and anything you configure.",
+  "description": "Super+Space menu with Tab commands for web, files, maps, package install and remove, and help.",
   "keywords": [
     "menu",
     "launcher",
     "tab",
-    "maps",
-    "url",
+    "web",
     "files",
-    "packages"
+    "maps",
+    "packages",
+    "help"
   ],
   "kinds": [
     "menu",
@@ -28,7 +29,7 @@
   },
   "barWidget": {
     "displayName": "Tabarchy",
-    "description": "Omarchy menu with Tabarchy commands",
+    "description": "Opens the Tabarchy Super+Space menu",
     "category": "Compositor",
     "allowMultiple": false
   },
