@@ -36,7 +36,7 @@
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -144,7 +166,287 @@
+@@ -144,7 +166,295 @@
    // Menu rows only surface their detail while a search is narrowing them;
    // dmenu rows carry caller-supplied subtext that must always be visible.
    function rowHeightForDetail(detail) {
@@ -105,6 +105,14 @@
 +    if (root.dmenuActive) return
 +    if (root.activeBang) root.exitBang(true)
 +    else root.tryEnterBang()
++  }
++
++  function isCtrlOnly(event) {
++    var mods = event.modifiers
++    return !!(mods & Qt.ControlModifier)
++      && !(mods & Qt.AltModifier)
++      && !(mods & Qt.MetaModifier)
++      && !(mods & Qt.ShiftModifier)
 +  }
 +
 +  function isPasteKey(event) {
@@ -325,7 +333,7 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -607,6 +909,10 @@
+@@ -607,6 +917,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -336,7 +344,7 @@
  
      displayModel.clear()
  
-@@ -731,6 +1037,7 @@
+@@ -731,6 +1045,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -344,7 +352,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -772,7 +1079,17 @@
+@@ -772,7 +1087,17 @@
      if (!root.rowSelectable(index)) return
  
      var row = displayModel.get(index)
@@ -363,7 +371,7 @@
        root.setActiveMenu(row.target || row.itemId, true, fromPointer)
      } else if (row.kind === "app") {
        var appId = row.appId
-@@ -824,6 +1141,7 @@
+@@ -824,6 +1149,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -371,7 +379,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1149,7 @@
+@@ -831,6 +1157,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -379,7 +387,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1161,7 @@
+@@ -842,6 +1169,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -387,7 +395,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1190,7 @@
+@@ -870,6 +1198,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -395,7 +403,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -981,6 +1302,103 @@
+@@ -981,6 +1310,103 @@
      onFileChanged: reload()
    }
  
@@ -499,7 +507,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1130,15 +1548,30 @@
+@@ -1130,19 +1556,34 @@
              root.requestDeleteSelected()
              event.accepted = true
            } else if (event.key === Qt.Key_Escape) {
@@ -523,16 +531,22 @@
 +          } else if (!root.activeBang && (event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.filterText) {
              root.goBack()
              event.accepted = true
+-          } else if (event.key === Qt.Key_Up) {
 +          } else if (event.key === Qt.Key_Tab) {
 +            root.toggleBang()
 +            event.accepted = true
 +          } else if (root.isPasteKey(event)) {
 +            root.requestPaste()
 +            event.accepted = true
-           } else if (event.key === Qt.Key_Up) {
++          } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_K && root.isCtrlOnly(event))) {
              root.select(-1)
              event.accepted = true
-@@ -1155,11 +1588,14 @@
+-          } else if (event.key === Qt.Key_Down) {
++          } else if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && root.isCtrlOnly(event))) {
+             root.select(1)
+             event.accepted = true
+           } else if (event.key === Qt.Key_PageUp) {
+@@ -1155,11 +1596,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -548,7 +562,7 @@
              event.accepted = true
            }
          }
-@@ -1203,9 +1639,9 @@
+@@ -1203,9 +1647,9 @@
              anchors.left: parent.left
              anchors.right: parent.right
              anchors.verticalCenter: parent.verticalCenter
@@ -560,7 +574,7 @@
              font.family: root.fontFamily
              font.pixelSize: Style.font.heading
              elide: Text.ElideRight
-@@ -1344,7 +1780,7 @@
+@@ -1344,7 +1788,7 @@
                    textFormat: Text.PlainText
                    width: parent.width
                    text: row.detail
@@ -569,7 +583,7 @@
                    color: root.foreground
                    opacity: 0.52
                    font.family: root.fontFamily
-@@ -1459,7 +1895,7 @@
+@@ -1459,7 +1903,7 @@
  
              Text {
                textFormat: Text.PlainText

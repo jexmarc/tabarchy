@@ -232,6 +232,14 @@ Item {
     else root.tryEnterBang()
   }
 
+  function isCtrlOnly(event) {
+    var mods = event.modifiers
+    return !!(mods & Qt.ControlModifier)
+      && !(mods & Qt.AltModifier)
+      && !(mods & Qt.MetaModifier)
+      && !(mods & Qt.ShiftModifier)
+  }
+
   function isPasteKey(event) {
     var mods = event.modifiers
     if (event.key === Qt.Key_Insert)
@@ -1572,10 +1580,10 @@ Item {
           } else if (root.isPasteKey(event)) {
             root.requestPaste()
             event.accepted = true
-          } else if (event.key === Qt.Key_Up) {
+          } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_K && root.isCtrlOnly(event))) {
             root.select(-1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Down) {
+          } else if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && root.isCtrlOnly(event))) {
             root.select(1)
             event.accepted = true
           } else if (event.key === Qt.Key_PageUp) {

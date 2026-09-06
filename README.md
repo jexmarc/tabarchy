@@ -112,6 +112,8 @@ clean slate.
 - Escape clears the argument, then leaves the command, then closes the menu.
 - Backspace on an empty argument also leaves the command.
 - Super+V or Ctrl+V pastes clipboard text into the current query.
+- Ctrl+J / Ctrl+K move the selection down / up while the menu is open
+  (same as Down / Up). They are handled only by this overlay, not globally.
 
 Two or more characters never trigger a command, so `ma` still searches the menu.
 
