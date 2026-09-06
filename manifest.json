@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "tabarchy",
+  "name": "Tabarchy",
+  "version": "1.0.0",
+  "author": "mgallagher",
+  "license": "MIT",
+  "description": "Super+Space menu with single-letter Tab commands for maps, URLs, files, and anything you configure.",
+  "keywords": [
+    "menu",
+    "launcher",
+    "tab",
+    "maps",
+    "url",
+    "files"
+  ],
+  "kinds": [
+    "menu",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "menu": "Menu.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Tabarchy",
+    "description": "Omarchy menu with Tabarchy commands",
+    "category": "Compositor",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.menu"
+  }
+}

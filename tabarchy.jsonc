@@ -1,0 +1,43 @@
+{
+  // Tabarchy: in Super+Space, type one letter, then Tab to switch into
+  // a command. Tab again returns to normal menu search on that letter.
+  //
+  // Set a letter to false to disable a default. Add any other letter
+  // to run a shell command. Placeholders:
+  //   {{query}}          the rest of the line, shell-quoted
+  //   {{query_encoded}}  the rest of the line, URL-encoded
+  //   {{url}}            https:// prepended if the query has no scheme, quoted
+  //
+  // kind "files" lists matches under your home directory instead of
+  // running a command.
+
+  "m": {
+    "name": "maps",
+    "icon": "󰗵",
+    "placeholder": "address",
+    "label": "Google Maps",
+    "action": "omarchy-launch-browser \"https://www.google.com/maps/search/?api=1&query={{query_encoded}}\""
+  },
+  "w": {
+    "name": "url",
+    "icon": "󰖟",
+    "placeholder": "amazon.com",
+    "label": "Open URL",
+    "requiresQuery": true,
+    "action": "omarchy-launch-browser {{url}}"
+  },
+  "f": {
+    "name": "files",
+    "icon": "",
+    "placeholder": "filename",
+    "kind": "files"
+  },
+  "i": {
+    "name": "install",
+    "icon": "󰏔",
+    "placeholder": "package",
+    "label": "Install package",
+    "requiresQuery": true,
+    "action": "omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add {{query}}"
+  }
+}
