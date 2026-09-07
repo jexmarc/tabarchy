@@ -15,13 +15,19 @@
   // "aliases" are shortcuts for w Tab. Type a name to open that URL.
   // Set a name to false to drop a default. https:// is added if omitted.
   // kind "help" lists every enabled command. Default letter is ?.
+  // kind "maps" opens an address with the maps provider from , Tab.
+  // kind "settings" is the , Tab settings command.
 
   "m": {
     "name": "maps",
     "icon": "󰗵",
     "placeholder": "address",
-    "label": "Google Maps",
-    "action": "omarchy-launch-browser \"https://www.google.com/maps/search/?api=1&query={{query_encoded}}\""
+    "kind": "maps"
+  },
+  ",": {
+    "name": "settings",
+    "icon": "󰒓",
+    "kind": "settings"
   },
   "w": {
     "name": "web",
@@ -33,17 +39,17 @@
   "f": {
     "name": "files",
     "icon": "",
-    "placeholder": "filename",
+    "placeholder": "file or folder",
     "kind": "files"
   },
   "i": {
-    "name": "install",
+    "name": "install pkg",
     "icon": "󰏔",
     "placeholder": "package",
     "kind": "packages"
   },
   "r": {
-    "name": "remove",
+    "name": "remove pkg",
     "icon": "󰆴",
     "placeholder": "package",
     "kind": "remove-packages"

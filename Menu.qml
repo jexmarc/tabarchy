@@ -70,7 +70,13 @@ Item {
   property string filterText: ""
   property var bangs: Bangs.defaults()
   property var webAliases: Bangs.defaultWebAliases()
+  property var jsoncAliases: ({})
+  property var settingsAliases: ({})
+  property var settingsData: ({})
   property string searchProvider: "google"
+  property string mapsProvider: "google"
+  property string settingsPage: "root"
+  property string settingsAliasKey: ""
   property var activeBang: null
   property string bangQuery: ""
   property string bangStashKey: ""
@@ -88,6 +94,7 @@ Item {
     if (url.indexOf("file://") === 0) url = decodeURIComponent(url.substring(7))
     return url.replace(/\/$/, "")
   }
+  readonly property string settingsPath: (Quickshell.env("HOME") || "") + "/.config/omarchy/tabarchy-settings.json"
   property int selectedIndex: 0
   property bool cursorActive: false
   property int requestSerial: 0
@@ -128,7 +135,12 @@ Item {
   readonly property real rowReservedBorderRight: Border.right(selectedBorderSpec)
   readonly property int cornerRadius: Style.cornerRadius
   property int contentMargin: Style.spacing.panelPadding
-  property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
+  property int headerHeight: {
+    var base = Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
+    if (!root.activeBang) return base
+    var badge = Math.max(Style.font.caption + Style.space(4), Style.space(14))
+    return Math.max(base, badge + Style.space(2) + Style.font.heading + Style.space(4))
+  }
   property int contentSpacing: Style.spacing.md
   property int baseRowHeight: Math.max(Style.space(50), Style.font.body + Style.spacing.rowPaddingX * 2)
   property int detailRowHeight: Math.max(Style.space(58), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
@@ -141,13 +153,16 @@ Item {
   property int layoutSerial: 0
   readonly property bool pkgBang: root.activeBang && (root.activeBang.kind === "packages" || root.activeBang.kind === "remove-packages")
   readonly property bool pkgRemove: root.activeBang && root.activeBang.kind === "remove-packages"
-  readonly property bool wideBang: root.pkgBang || (root.activeBang && (root.activeBang.kind === "files" || root.activeBang.kind === "web" || root.activeBang.kind === "help"))
+  readonly property bool wideBang: root.pkgBang || (root.activeBang && (root.activeBang.kind === "files" || root.activeBang.kind === "web" || root.activeBang.kind === "help" || root.activeBang.kind === "maps" || root.activeBang.kind === "settings"))
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideBang ? Style.space(600) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300))), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   readonly property bool pkgPane: root.pkgBang
   readonly property bool pkgDetailVisible: root.pkgPane && displayModel.count > 0
   property int pkgDetailHeight: Style.space(72)
   readonly property bool helpPane: root.activeBang && root.activeBang.kind === "help"
+  readonly property bool settingsPane: root.activeBang && root.activeBang.kind === "settings"
+  readonly property bool navPane: root.helpPane || root.settingsPane
+  readonly property bool settingsAliasesPage: root.settingsPane && (root.settingsPage === "aliases" || root.settingsPage === "alias-edit")
   property int helpNavHeight: Style.space(52)
   readonly property string selectedPkgDetail: {
     var _watch = root.layoutSerial
@@ -159,7 +174,7 @@ Item {
   }
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
-    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + (root.pkgDetailVisible ? contentSpacing + pkgDetailHeight : 0) + (root.helpPane ? contentSpacing + helpNavHeight : 0), panel.height - Style.gapsOut * 2)
+    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + (root.pkgDetailVisible ? contentSpacing + pkgDetailHeight : 0) + (root.navPane ? contentSpacing + helpNavHeight : 0), panel.height - Style.gapsOut * 2)
 
   function finishRequest(selection) {
     if (!root.requestActive || !root.doneFile) {
@@ -197,6 +212,8 @@ Item {
   function clearBang() {
     root.activeBang = null
     root.bangQuery = ""
+    root.settingsPage = "root"
+    root.settingsAliasKey = ""
     root.bangFileRows = []
     root.bangPkgRows = []
     root.bangPkgSearching = false
@@ -218,7 +235,9 @@ Item {
   function enterBang(bang) {
     panel.freezeCardTop()
     root.activeBang = bang
-    root.bangQuery = (root.bangStashKey === bang.key) ? root.bangStashQuery : ""
+    root.settingsPage = "root"
+    root.settingsAliasKey = ""
+    root.bangQuery = (bang.kind === "settings") ? "" : ((root.bangStashKey === bang.key) ? root.bangStashQuery : "")
     root.filterText = ""
     root.bangFileRows = []
     root.bangPkgRows = []
@@ -311,18 +330,270 @@ Item {
       if (root.bangPkgSearching)
         return root.pkgRemove ? "Searching installed packages…" : "Searching Arch, Omarchy, and AUR…"
     }
+    if (root.settingsPane) {
+      if (root.settingsPage === "alias-edit") return "Type the new URL"
+      if (root.settingsPage === "search" || root.settingsPage === "maps")
+        return root.bangQuery ? "No matches for “" + root.bangQuery + "”" : "Type a URL with %s for a custom provider"
+    }
     if (root.bangQuery) return "No matches for “" + root.bangQuery + "”"
     if (root.activeBang.placeholder) return "Type " + root.activeBang.placeholder
     return "Type to continue"
   }
 
+  function headerBangName() {
+    if (!root.activeBang) return ""
+    var name = root.activeBang.name
+    if (root.activeBang.key === "i" && name === "install") name = "install pkg"
+    if (root.activeBang.key === "r" && name === "remove") name = "remove pkg"
+    if (root.settingsPane) {
+      if (root.settingsPage === "search") name = "search"
+      else if (root.settingsPage === "maps") name = "maps"
+      else if (root.settingsPage === "aliases" || root.settingsPage === "alias-edit") name = "aliases"
+    }
+    return name
+  }
+
   function headerText() {
     if (root.activeBang)
-      return "Tabarchy " + root.activeBang.name + ":" + (root.bangQuery ? " " + root.bangQuery : "")
+      return root.headerBangName() + ":" + (root.bangQuery ? " " + root.bangQuery : "")
     if (root.filterText) return root.filterText
     if (root.dmenuActive) return root.dmenuPrompt + "…"
     var current = root.item(root.activeMenu)
     return ((current ? (current.title || current.label) : "Go") + "…")
+  }
+
+  function refreshWebAliases() {
+    root.webAliases = Bangs.mergeAliases(
+      Bangs.mergeAliases(Bangs.defaultWebAliases(), root.jsoncAliases),
+      root.settingsAliases
+    )
+  }
+
+  function settingsGoBack() {
+    if (!root.settingsPane) return false
+    if (root.settingsPage === "root") return false
+    if (root.settingsPage === "alias-edit") {
+      root.settingsPage = "aliases"
+      root.settingsAliasKey = ""
+      root.setBangQuery("")
+      return true
+    }
+    root.settingsPage = "root"
+    root.setBangQuery("")
+    return true
+  }
+
+  function openSettingsPage(page, query) {
+    root.settingsPage = page
+    root.setBangQuery(query || "")
+  }
+
+  function bangSettingsRow(spec, index) {
+    return {
+      itemId: spec.itemId || ("bang.settings." + index),
+      disabled: !!spec.disabled,
+      kind: "bang-settings",
+      icon: spec.icon || "󰒓",
+      iconFont: "",
+      appIcon: "",
+      appId: "",
+      label: spec.label || "",
+      target: spec.target || "",
+      detail: spec.detail || "",
+      path: spec.path || "",
+      childCount: spec.childCount || 0,
+      action: spec.action || "",
+      provider: spec.provider || "",
+      score: index,
+      section: ""
+    }
+  }
+
+  function appendSettingsRows(rows) {
+    for (var i = 0; i < rows.length; i++)
+      displayModel.append(root.bangSettingsRow(rows[i], i))
+  }
+
+  function rebuildSettingsDisplay() {
+    var query = String(root.bangQuery || "")
+    var q = query.trim()
+    var rows = []
+    var i
+
+    if (root.settingsPage === "search") {
+      var searchChoices = Bangs.providerChoices(Bangs.searchProviders(), Bangs.searchProviderOrder(), root.searchProvider, Bangs.resolveSearchProvider)
+      for (i = 0; i < searchChoices.length; i++) {
+        var search = searchChoices[i]
+        var searchLabel = (search.current ? "✓  " : "") + search.name
+        var searchDetail = search.id === "custom" ? (search.url || "URL with %s") : ""
+        if (!Bangs.settingsMatch(searchLabel, searchDetail, search.id, q) && search.id !== "custom") continue
+        if (search.id === "custom" && q && !Bangs.settingsMatch(searchLabel, searchDetail, search.id, q) && !Bangs.isProviderTemplate(q)) continue
+        rows.push({
+          itemId: "bang.settings.search." + search.id,
+          icon: "󰍉",
+          label: searchLabel,
+          detail: searchDetail,
+          target: search.id === "custom" ? "set-search-custom" : "set-search",
+          path: search.id === "custom" ? "" : search.id,
+          provider: search.current ? "current" : ""
+        })
+      }
+    } else if (root.settingsPage === "maps") {
+      var mapsChoices = Bangs.providerChoices(Bangs.mapsProviders(), Bangs.mapsProviderOrder(), root.mapsProvider, Bangs.resolveMapsProvider)
+      for (i = 0; i < mapsChoices.length; i++) {
+        var maps = mapsChoices[i]
+        var mapsLabel = (maps.current ? "✓  " : "") + maps.name
+        var mapsDetail = maps.id === "custom" ? (maps.url || "URL with %s") : ""
+        if (!Bangs.settingsMatch(mapsLabel, mapsDetail, maps.id, q) && maps.id !== "custom") continue
+        if (maps.id === "custom" && q && !Bangs.settingsMatch(mapsLabel, mapsDetail, maps.id, q) && !Bangs.isProviderTemplate(q)) continue
+        rows.push({
+          itemId: "bang.settings.maps." + maps.id,
+          icon: "󰗵",
+          label: mapsLabel,
+          detail: mapsDetail,
+          target: maps.id === "custom" ? "set-maps-custom" : "set-maps",
+          path: maps.id === "custom" ? "" : maps.id,
+          provider: maps.current ? "current" : ""
+        })
+      }
+    } else if (root.settingsPage === "alias-edit") {
+      var editKey = root.settingsAliasKey
+      var editUrl = q ? Bangs.toUrl(q) : ""
+      rows.push({
+        itemId: "bang.settings.alias.save",
+        icon: "",
+        label: "Save " + editKey,
+        detail: editUrl || "type a URL",
+        target: "alias-save",
+        path: editKey,
+        disabled: !editUrl
+      })
+    } else if (root.settingsPage === "aliases") {
+      var parsed = Bangs.parseAliasInput(query)
+      if (parsed) {
+        var existing = root.webAliases[parsed.key]
+        rows.push({
+          itemId: "bang.settings.alias.save",
+          icon: "",
+          label: (existing ? "Update " : "Add ") + parsed.key,
+          detail: parsed.url,
+          target: "alias-save",
+          path: parsed.key
+        })
+      } else if (!q) {
+        rows.push({
+          itemId: "bang.settings.alias.add",
+          icon: "",
+          label: "Add alias",
+          detail: "name  url",
+          target: "alias-add"
+        })
+      }
+      var aliases = Bangs.sortedAliases(root.webAliases)
+      for (i = 0; i < aliases.length; i++) {
+        var alias = aliases[i]
+        if (!parsed && q && !Bangs.settingsMatch(alias.key, alias.url, "", q)) continue
+        if (parsed && alias.key !== parsed.key) continue
+        rows.push({
+          itemId: "bang.settings.alias." + alias.key,
+          icon: "",
+          label: alias.name || alias.key,
+          detail: alias.url,
+          target: "alias-edit",
+          path: alias.key,
+          childCount: 1
+        })
+      }
+    } else {
+      var searchName = Bangs.resolveSearchProvider(root.searchProvider).name
+      var mapsName = Bangs.resolveMapsProvider(root.mapsProvider).name
+      var aliasDetail = Bangs.aliasSummary(root.webAliases)
+      var rootRows = [
+        { itemId: "bang.settings.search", icon: "󰍉", label: "Search provider", detail: searchName, target: "search", childCount: 1 },
+        { itemId: "bang.settings.maps", icon: "󰗵", label: "Maps provider", detail: mapsName, target: "maps", childCount: 1 },
+        { itemId: "bang.settings.aliases", icon: "", label: "Aliases", detail: aliasDetail, target: "aliases", childCount: 1 },
+        { itemId: "bang.settings.edit", icon: "", label: "Edit config file", detail: "~/.config/omarchy/tabarchy.jsonc", target: "edit-config" }
+      ]
+      for (i = 0; i < rootRows.length; i++) {
+        if (!Bangs.settingsMatch(rootRows[i].label, rootRows[i].detail, "", q)) continue
+        rows.push(rootRows[i])
+      }
+    }
+
+    root.appendSettingsRows(rows)
+  }
+
+  function setSearchProviderValue(value) {
+    var resolved = Bangs.resolveSearchProvider(value)
+    var stored = resolved.id === "custom" ? String(value || "").trim() : resolved.id
+    root.searchProvider = stored
+    Util.execArgv([root.pluginDir + "/bin/omarchy-tabarchy-search", stored])
+    root.rebuildDisplay()
+  }
+
+  function setMapsProviderValue(value) {
+    var resolved = Bangs.resolveMapsProvider(value)
+    var stored = resolved.id === "custom" ? String(value || "").trim() : resolved.id
+    root.mapsProvider = stored
+    Util.execArgv([root.pluginDir + "/bin/omarchy-tabarchy-maps", stored])
+    root.rebuildDisplay()
+  }
+
+  function writeSettingsText(text) {
+    settingsWriteProc.running = false
+    settingsWriteProc.command = ["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1.tmp\" && mv \"$1.tmp\" \"$1\"", "tabarchy-settings", root.settingsPath, text]
+    settingsWriteProc.running = true
+  }
+
+  function setSettingsAlias(key, value) {
+    var k = String(key || "").trim().toLowerCase()
+    if (!Bangs.isAliasKey(k)) return
+    var src = root.settingsData || {}
+    var data = {}
+    var field
+    for (field in src) {
+      if (Object.prototype.hasOwnProperty.call(src, field) && field !== "aliases")
+        data[field] = src[field]
+    }
+    var aliases = {}
+    var current = (src.aliases && typeof src.aliases === "object" && !Array.isArray(src.aliases)) ? src.aliases : {}
+    var aliasKey
+    for (aliasKey in current) {
+      if (Object.prototype.hasOwnProperty.call(current, aliasKey))
+        aliases[aliasKey] = current[aliasKey]
+    }
+    aliases[k] = value
+    data.aliases = aliases
+    root.settingsData = data
+    root.settingsAliases = Bangs.settingsAliasesFromData(data)
+    root.refreshWebAliases()
+    root.writeSettingsText(JSON.stringify(data, null, 2) + "\n")
+  }
+
+  function saveSettingsAlias(key, url) {
+    root.setSettingsAlias(key, url)
+    root.settingsPage = "aliases"
+    root.settingsAliasKey = ""
+    root.setBangQuery("")
+  }
+
+  function deleteSettingsAlias(key) {
+    root.setSettingsAlias(key, false)
+    if (root.settingsAliasKey === key) {
+      root.settingsPage = "aliases"
+      root.settingsAliasKey = ""
+    }
+    root.setBangQuery("")
+  }
+
+  function openTabarchyConfig() {
+    var dest = (Quickshell.env("HOME") || "") + "/.config/omarchy/tabarchy.jsonc"
+    var src = root.pluginDir + "/tabarchy.jsonc"
+    applySerial = requestSerial
+    opened = false
+    root.clearBang()
+    filterText = ""
+    Util.execArgv(["bash", "-c", "mkdir -p \"$HOME/.config/omarchy\"; [[ -f $1 ]] || cp \"$2\" \"$1\"; omarchy-launch-editor \"$1\"", "tabarchy-edit", dest, src])
   }
 
   function scheduleBangFiles() {
@@ -347,8 +618,11 @@ Item {
     bangFilesProc.generation = root.bangFilesGeneration
     bangFilesProc.collected = ""
     bangFilesProc.command = [
-      "fd", "--color=never", "--max-results", "50",
-      "--exclude", ".git", "--", query,
+      "bash", "-c",
+      "fd --color=never --absolute-path --no-ignore-vcs --type d --max-results 25 --exclude .git --exclude node_modules --exclude .venv --exclude venv --format 'd|{}' -- \"$1\" \"$2\"\n" +
+      "fd --color=never --absolute-path --no-ignore-vcs --type f --max-results 25 --exclude .git --exclude node_modules --exclude .venv --exclude venv --format 'f|{}' -- \"$1\" \"$2\"",
+      "tabarchy-fd",
+      query,
       Quickshell.env("HOME") || ""
     ]
     bangFilesProc.running = true
@@ -428,22 +702,25 @@ Item {
     }
   }
 
-  function bangFileRow(path, index) {
+  function bangFileRow(entry, index) {
+    var path = entry && typeof entry === "object" ? String(entry.path || "") : String(entry || "")
+    var isDir = !!(entry && typeof entry === "object" && entry.isDir)
+    if (!isDir && path.slice(-1) === "/") isDir = true
     return {
       itemId: "bang.file." + index,
       disabled: false,
       kind: "bang-file",
-      icon: "",
+      icon: isDir ? "" : "",
       iconFont: "",
       appIcon: "",
       appId: "",
-      label: Bangs.fileLabel(path),
+      label: Bangs.fileLabel(path) + (isDir ? "/" : ""),
       target: "",
       detail: path,
       path: path,
       childCount: 0,
       action: path,
-      provider: "",
+      provider: isDir ? "dir" : "",
       score: index,
       section: ""
     }
@@ -538,6 +815,29 @@ Item {
         for (var w = 0; w < choices.length; w++)
           displayModel.append(root.bangWebRow(choices[w], w, bang))
       }
+    } else if (bang.kind === "maps") {
+      var dest = Bangs.mapsDestination(root.bangQuery, root.mapsProvider, Util.shellQuote)
+      var mapsMissing = bang.requiresQuery && !String(root.bangQuery || "").trim()
+      displayModel.append({
+        itemId: "bang." + bang.key,
+        disabled: mapsMissing,
+        kind: "bang",
+        icon: bang.icon,
+        iconFont: bang.iconFont,
+        appIcon: "",
+        appId: "",
+        label: dest.label || bang.label || bang.name,
+        target: "",
+        detail: dest.detail || bang.placeholder,
+        path: "",
+        childCount: 0,
+        action: dest.action,
+        provider: "",
+        score: 0,
+        section: ""
+      })
+    } else if (bang.kind === "settings") {
+      root.rebuildSettingsDisplay()
     } else {
       var query = root.bangQuery
       var missing = bang.requiresQuery && !String(query).trim()
@@ -1203,10 +1503,16 @@ Item {
     var row = displayModel.get(index)
     if (row.kind === "bang") {
       root.applySelected(row.itemId, row.action)
+    } else if (row.kind === "bang-settings") {
+      root.activateSettingsRow(row)
     } else if (row.kind === "bang-help") {
       var next = root.bangLookup(row.target)
       if (next && next.kind !== "help") root.enterBang(next)
     } else if (row.kind === "bang-file") {
+      if (row.provider === "dir") {
+        root.openFilePath(row.action, "reveal")
+        return
+      }
       if (root.isMarkdownPath(row.action)) {
         root.mdOpenPath = row.action
         mdChoice.selectedIndex = 1
@@ -1262,7 +1568,7 @@ Item {
     opened = false
     root.clearBang()
     filterText = ""
-    if (mode === "edit" || mode === "view")
+    if (mode === "edit" || mode === "view" || mode === "reveal")
       Util.execArgv([root.pluginDir + "/bin/tabarchy-open", "--" + mode, path])
     else
       Util.execArgv([root.pluginDir + "/bin/tabarchy-open", path])
@@ -1285,11 +1591,52 @@ Item {
     root.openFilePath(path, mode)
   }
 
+  function activateSettingsRow(row) {
+    if (!row) return
+    var target = row.target
+    var query = String(root.bangQuery || "").trim()
+    if (target === "search" || target === "maps" || target === "aliases") {
+      root.openSettingsPage(target, "")
+    } else if (target === "edit-config") {
+      root.openTabarchyConfig()
+    } else if (target === "set-search") {
+      root.setSearchProviderValue(row.path)
+    } else if (target === "set-maps") {
+      root.setMapsProviderValue(row.path)
+    } else if (target === "set-search-custom") {
+      if (Bangs.isProviderTemplate(query)) root.setSearchProviderValue(query)
+      else if (query) return
+    } else if (target === "set-maps-custom") {
+      if (Bangs.isProviderTemplate(query)) root.setMapsProviderValue(query)
+      else if (query) return
+    } else if (target === "alias-add") {
+      var parsedAdd = Bangs.parseAliasInput(root.bangQuery)
+      if (parsedAdd) root.saveSettingsAlias(parsedAdd.key, parsedAdd.url)
+    } else if (target === "alias-save") {
+      if (root.settingsPage === "alias-edit") {
+        if (query) root.saveSettingsAlias(root.settingsAliasKey, Bangs.toUrl(query))
+      } else {
+        var parsedSave = Bangs.parseAliasInput(root.bangQuery)
+        if (parsedSave) root.saveSettingsAlias(parsedSave.key, parsedSave.url)
+      }
+    } else if (target === "alias-edit" && row.path) {
+      var current = root.webAliases[row.path]
+      root.settingsAliasKey = row.path
+      root.openSettingsPage("alias-edit", current && current.url ? current.url : "")
+    }
+  }
+
   function requestDeleteSelected() {
     if (!root.cursorActive || root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return
     var row = displayModel.get(root.selectedIndex)
+    if (root.settingsAliasesPage && row && row.kind === "bang-settings" && row.path && (row.target === "alias-edit" || row.target === "alias-save")) {
+      root.deleteTarget = { kind: "alias", key: row.path, label: row.path }
+      deleteConfirm.selectedIndex = 1
+      root.deleteConfirmOpen = true
+      return
+    }
     if (!row || row.kind !== "app") return
-    root.deleteTarget = { appId: row.appId, label: row.label }
+    root.deleteTarget = { kind: "app", appId: row.appId, label: row.label }
     deleteConfirm.selectedIndex = 1
     root.deleteConfirmOpen = true
   }
@@ -1307,6 +1654,13 @@ Item {
     root.deleteConfirmOpen = false
     root.deleteTarget = null
     if (!target) return
+    if (target.kind === "alias") {
+      root.deleteSettingsAlias(target.key)
+      deleteConfirm.selectedIndex = 1
+      root.disarmPointer()
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      return
+    }
     root.cancel()
     if (root.appLibrary) root.appLibrary.remove(target.appId, target.label)
   }
@@ -1492,12 +1846,33 @@ Item {
     onLoaded: {
       var raw = text()
       root.bangs = Bangs.mergeBangs(Bangs.defaults(), Bangs.parseBangs(raw))
-      root.webAliases = Bangs.mergeAliases(Bangs.defaultWebAliases(), Bangs.parseAliases(raw))
+      root.jsoncAliases = Bangs.parseAliases(raw)
+      root.refreshWebAliases()
       if (root.opened && root.activeBang) root.rebuildDisplay()
     }
     onLoadFailed: {
       root.bangs = Bangs.defaults()
-      root.webAliases = Bangs.defaultWebAliases()
+      root.jsoncAliases = ({})
+      root.refreshWebAliases()
+    }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: settingsFile
+    path: root.settingsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      root.settingsData = Bangs.parseSettings(text())
+      root.settingsAliases = Bangs.settingsAliasesFromData(root.settingsData)
+      root.refreshWebAliases()
+      if (root.opened && root.activeBang) root.rebuildDisplay()
+    }
+    onLoadFailed: {
+      root.settingsData = ({})
+      root.settingsAliases = ({})
+      root.refreshWebAliases()
     }
     onFileChanged: reload()
   }
@@ -1510,11 +1885,32 @@ Item {
     onLoaded: {
       var next = String(text() || "").trim() || "google"
       root.searchProvider = next
-      if (root.opened && root.activeBang && root.activeBang.kind === "web")
+      if (root.opened && root.activeBang && (root.activeBang.kind === "web" || root.activeBang.kind === "settings"))
         root.rebuildDisplay()
     }
     onLoadFailed: { root.searchProvider = "google" }
     onFileChanged: reload()
+  }
+
+  FileView {
+    id: mapsProviderFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/defaults/maps"
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      var next = String(text() || "").trim() || "google"
+      root.mapsProvider = next
+      if (root.opened && root.activeBang && (root.activeBang.kind === "maps" || root.activeBang.kind === "settings"))
+        root.rebuildDisplay()
+    }
+    onLoadFailed: { root.mapsProvider = "google" }
+    onFileChanged: reload()
+  }
+
+  Process {
+    id: settingsWriteProc
+    command: ["true"]
+    onExited: settingsFile.reload()
   }
 
   Timer {
@@ -1550,11 +1946,29 @@ Item {
       if (bangFilesProc.generation !== root.bangFilesGeneration) return
       if (!root.activeBang || root.activeBang.kind !== "files") return
       var rows = []
+      var seen = {}
       var lines = bangFilesProc.collected.split("\n")
       for (var i = 0; i < lines.length; i++) {
         var line = lines[i]
-        if (line) rows.push(line)
+        if (!line) continue
+        var isDir = false
+        var path = line
+        if (line.slice(0, 2) === "d|" || line.slice(0, 2) === "f|" || line.slice(0, 2) === "d\t" || line.slice(0, 2) === "f\t") {
+          isDir = line.charAt(0) === "d"
+          path = line.slice(2)
+        } else if (line.slice(-1) === "/") {
+          isDir = true
+          path = line.replace(/\/+$/, "")
+        }
+        path = path.replace(/\/+$/, "")
+        if (!path || seen[path]) continue
+        seen[path] = true
+        rows.push({ path: path, isDir: isDir })
       }
+      rows.sort(function(a, b) {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
+        return 0
+      })
       root.bangFileRows = rows
       root.rebuildDisplay()
     }
@@ -1775,7 +2189,7 @@ Item {
           } else if (event.key === Qt.Key_Escape) {
             if (root.activeBang) {
               if (root.bangQuery) root.setBangQuery("")
-              else root.exitBang(false)
+              else if (!root.settingsGoBack()) root.exitBang(false)
             } else if (root.filterText) root.setFilter("")
             else root.cancel()
             event.accepted = true
@@ -1783,7 +2197,7 @@ Item {
             root.setBangQuery(Util.editedFilter(event, root.bangQuery))
             event.accepted = true
           } else if (root.activeBang && (event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.bangQuery) {
-            root.exitBang(true)
+            if (!root.settingsGoBack()) root.exitBang(true)
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
@@ -1831,8 +2245,10 @@ Item {
           anchors.fill: parent
           opened: root.deleteConfirmOpen
           z: 10
-          message: "Do you want to uninstall " + ((root.deleteTarget && root.deleteTarget.label) || "") + "?"
-          confirmText: "Uninstall"
+          message: (root.deleteTarget && root.deleteTarget.kind === "alias")
+            ? ("Delete alias " + ((root.deleteTarget && root.deleteTarget.label) || "") + "?")
+            : ("Do you want to uninstall " + ((root.deleteTarget && root.deleteTarget.label) || "") + "?")
+          confirmText: (root.deleteTarget && root.deleteTarget.kind === "alias") ? "Delete" : "Uninstall"
           background: root.background
           foreground: root.foreground
           scrim: root.scrim
@@ -1879,7 +2295,48 @@ Item {
           radius: root.cornerRadius
           color: "transparent"
 
+          Column {
+            id: bangHeader
+            visible: !!root.activeBang
+            anchors.left: parent.left
+            anchors.right: headerSpinner.left
+            anchors.rightMargin: headerSpinner.visible ? Style.space(8) : 0
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            Rectangle {
+              width: tabarchyBadgeLabel.implicitWidth + Style.space(8)
+              height: Math.max(tabarchyBadgeLabel.implicitHeight + Style.space(2), Style.space(14))
+              radius: Math.round(height / 2)
+              color: Color.accent
+
+              Text {
+                id: tabarchyBadgeLabel
+                anchors.centerIn: parent
+                textFormat: Text.PlainText
+                text: "Tabarchy"
+                color: root.background
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.weight: Font.Medium
+              }
+            }
+
+            Text {
+              id: bangHeaderText
+              width: parent.width
+              textFormat: Text.PlainText
+              text: root.headerText()
+              color: root.foreground
+              opacity: root.bangQuery ? 1 : 0.58
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.heading
+              elide: Text.ElideRight
+            }
+          }
+
           Text {
+            visible: !root.activeBang
             textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.right: headerSpinner.left
@@ -1887,7 +2344,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: root.headerText()
             color: root.foreground
-            opacity: (root.filterText || root.bangQuery) ? 1 : 0.58
+            opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
@@ -1901,7 +2358,7 @@ Item {
             width: Style.space(52)
             height: Style.space(10)
             anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenter: bangHeader.visible ? bangHeaderText.verticalCenter : parent.verticalCenter
           }
 
         }
@@ -2101,9 +2558,9 @@ Item {
 
                 Text {
                   textFormat: Text.PlainText
-                  text: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target.length > 0) ? "›" : ""
+                  text: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target.length > 0) || (row.kind === "bang-settings" && row.childCount > 0) ? "›" : ""
                   color: row.hasCursor ? root.selectedText : root.foreground
-                  opacity: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target.length > 0) ? 0.36 : 0
+                  opacity: row.kind === "menu" || row.kind === "link" || (row.kind === "bang-help" && row.target.length > 0) || (row.kind === "bang-settings" && row.childCount > 0) ? 0.36 : 0
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
                   font.weight: Font.Normal
@@ -2237,7 +2694,7 @@ Item {
         }
 
         Item {
-          visible: root.helpPane
+          visible: root.navPane
           width: parent.width
           height: visible ? root.helpNavHeight : 0
           clip: true
@@ -2269,7 +2726,9 @@ Item {
             Text {
               textFormat: Text.PlainText
               width: parent.width
-              text: "Ctrl+J / Ctrl+K  down / up     Super+V / Ctrl+V  paste"
+              text: root.settingsAliasesPage
+                ? "Ctrl+J / Ctrl+K  down / up     Delete  remove alias"
+                : "Ctrl+J / Ctrl+K  down / up     Super+V / Ctrl+V  paste"
               color: root.foreground
               opacity: 0.62
               font.family: root.fontFamily

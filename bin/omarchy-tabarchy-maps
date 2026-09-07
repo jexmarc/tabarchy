@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# omarchy:summary=Set Tabarchy's default maps provider
+# omarchy:group=tabarchy
+# omarchy:name=maps
+# omarchy:args=[google|osm|bing|apple|ddg|kagi|<url-with-%s>]
+# omarchy:examples=omarchy tabarchy maps|omarchy tabarchy maps google|omarchy tabarchy maps osm
+
+set -euo pipefail
+
+file="$HOME/.config/omarchy/defaults/maps"
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy-tabarchy-maps [google|osm|bing|apple|ddg|kagi|<url-with-%s>]
+
+Show or set the maps provider Tabarchy uses for `m Tab`. Default is google.
+
+  omarchy-tabarchy-maps                 print the current provider
+  omarchy-tabarchy-maps google          use Google Maps
+  omarchy-tabarchy-maps osm             use OpenStreetMap
+  omarchy-tabarchy-maps --list          list built-in providers
+  omarchy-tabarchy-maps 'https://example.com/maps?q=%s'
+EOF
+}
+
+normalize() {
+  local raw="${1,,}"
+  case "$raw" in
+  google | g | gmaps | googlemaps | maps) echo google ;;
+  osm | openstreet | openstreetmap) echo osm ;;
+  bing) echo bing ;;
+  apple) echo apple ;;
+  ddg | duck | duckduckgo) echo ddg ;;
+  kagi) echo kagi ;;
+  *) return 1 ;;
+  esac
+}
+
+display_name() {
+  case "$1" in
+  google) echo "Google Maps" ;;
+  osm) echo OpenStreetMap ;;
+  bing) echo "Bing Maps" ;;
+  apple) echo "Apple Maps" ;;
+  ddg) echo "DuckDuckGo Maps" ;;
+  kagi) echo "Kagi Maps" ;;
+  *) echo Maps ;;
+  esac
+}
+
+current() {
+  if [[ -f $file ]]; then
+    local value
+    value=$(<"$file")
+    value=${value%%$'\n'}
+    value=${value%%$'\r'}
+    [[ -n $value ]] && printf '%s\n' "$value" && return
+  fi
+  echo google
+}
+
+if (($# == 0)); then
+  current
+  exit 0
+fi
+
+case "${1:-}" in
+-h | --help)
+  usage
+  exit 0
+  ;;
+--list | -l)
+  printf '%s\n' google osm bing apple ddg kagi
+  exit 0
+  ;;
+esac
+
+value="$1"
+canonical=""
+if canonical=$(normalize "$value"); then
+  value="$canonical"
+elif [[ $value == *'%s'* || $value == *'{{query'* ]]; then
+  :
+else
+  usage >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$file")"
+printf '%s\n' "$value" >"$file"
+
+name=$(display_name "$value")
+if [[ $value == *'://'* ]]; then
+  omarchy-notification-send -g 󰗵 "Tabarchy maps is a custom provider"
+else
+  omarchy-notification-send -g 󰗵 "$name is now the Tabarchy maps provider"
+fi

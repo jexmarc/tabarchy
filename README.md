@@ -10,7 +10,7 @@ muscle memory for tab-completion keypresses. This brings that front and
 center to the Omarchy menu without changing the default behavior (too much).
 
 Normal typing still fuzzy-searches apps and the Omarchy command tree. Tab is a
-toggle: one letter plus Tab switches into a command, and Tab again returns to
+toggle: one character plus Tab switches into a command, and Tab again returns to
 that letter in ordinary search.
 
 ```
@@ -31,7 +31,9 @@ readme
 Enter
 ```
 
-opens a matching file under your home directory (`'` shows it in Files instead).
+opens a matching file under your home directory. Folders match too and are
+listed first; Enter or `'` opens a folder in Files (`'` on a file shows it
+in Files instead).
 
 ```
 Super+Space
@@ -66,6 +68,13 @@ Super+Space
 ```
 
 lists every command. Enter on a row jumps into it.
+
+```
+Super+Space
+, Tab
+```
+
+opens Tabarchy settings: search provider, maps provider, and URL aliases.
 
 Plugins run unsandboxed inside the long-lived `omarchy-shell` process, with
 your user permissions. Review the source before you enable it.
@@ -146,8 +155,10 @@ These are your files. Tabarchy does not create them unless you did, and
 removal does not delete them:
 
 ```
-~/.config/omarchy/tabarchy.jsonc      # optional bang overrides
-~/.config/omarchy/defaults/search     # search provider, if you set one
+~/.config/omarchy/tabarchy.jsonc           # optional bang overrides
+~/.config/omarchy/tabarchy-settings.json   # aliases changed from , Tab
+~/.config/omarchy/defaults/search          # search provider, if you set one
+~/.config/omarchy/defaults/maps            # maps provider, if you set one
 ```
 
 They have no effect while Tabarchy is gone. Delete them by hand if you want a
@@ -155,26 +166,42 @@ clean slate.
 
 ## Commands
 
-All of these start from Super+Space, then **one letter + Tab**.
+All of these start from Super+Space, then **one character + Tab**.
 
 | Type | Tab | Then |
 |---|---|---|
 | `w` | web | a URL, an alias, **or** a search, Enter |
-| `f` | files | a filename; Enter opens, `'` shows in Files |
+| `f` | files | a file or folder; folders first; Enter opens, `'` shows in Files |
 | `m` | maps | an address, Enter |
-| `i` | install | a package name (2+ chars); pick a result, Enter to install |
-| `r` | remove | an installed package (2+ chars); pick a result, Enter to uninstall |
+| `i` | install pkg | a package name (2+ chars); pick a result, Enter to install |
+| `r` | remove pkg | an installed package (2+ chars); pick a result, Enter to uninstall |
+| `,` | settings | search provider, maps provider, aliases; Enter drills in |
 | `?` | help | the command list plus keys; Enter opens the highlighted command |
 
 Two or more characters never trigger a command, so `ma` still searches the menu.
 
 `? Tab` lists every enabled command (including letters you add). Enter on a
 row jumps into that command. Navigation keys sit in a footer under the list,
-not as selectable rows.
+not as selectable rows. Order is `w`, `f`, `m`, `i`, `r`, `,`, `?`.
 
 ### Maps (`m Tab`)
 
-Type an address and Enter. Opens Google Maps in the default browser.
+Type an address and Enter. Opens the configured maps provider in the default
+browser (Google Maps by default). Change the provider with `, Tab` or:
+
+```
+omarchy-tabarchy-maps                 # print current provider
+omarchy-tabarchy-maps google
+omarchy-tabarchy-maps osm
+omarchy-tabarchy-maps bing
+omarchy-tabarchy-maps apple
+omarchy-tabarchy-maps ddg
+omarchy-tabarchy-maps kagi
+omarchy-tabarchy-maps --list
+omarchy-tabarchy-maps 'https://example.com/maps?q=%s'
+```
+
+The maps provider is `~/.config/omarchy/defaults/maps`.
 
 ### Web (`w Tab`)
 
@@ -204,8 +231,9 @@ Set an alias to `false` to drop a default. `https://` is added if you omit it.
 Treat this list as shortcuts for the sites you actually open. Tabarchy does
 not read browser bookmarks.
 
-The search provider is `~/.config/omarchy/defaults/search`. Enabling the plugin
-puts `omarchy-tabarchy-search` on your PATH (`~/.local/bin`). That symlink is
+The search provider is `~/.config/omarchy/defaults/search`. Change it from
+`, Tab` or with the CLI. Enabling the plugin puts `omarchy-tabarchy-search`
+and `omarchy-tabarchy-maps` on your PATH (`~/.local/bin`). Those symlinks are
 removed when you disable or uninstall Tabarchy.
 
 ```
@@ -219,17 +247,18 @@ omarchy-tabarchy-search 'https://example.com/search?q=%s'
 
 ### Files (`f Tab`)
 
-`fd` under `$HOME`. The menu is double-wide so longer paths stay readable.
+`fd` under `$HOME`. Folders and files both match; folders are listed first.
+Gitignore is ignored so project clones still show (`node_modules` and `.git`
+are still skipped). The menu is double-wide so longer paths stay readable.
 
-- **Enter** opens the file. GUI types (images, PDFs, folders) use `xdg-open`.
-  Text that would otherwise launch nvim with no terminal goes through
-  `omarchy launch editor`.
+- **Enter** on a **folder** opens it in Files. On a **file**, it opens the
+  file. GUI types (images, PDFs) use `xdg-open`. Text that would otherwise
+  launch nvim with no terminal goes through `omarchy launch editor`.
 - **Markdown** asks View or Edit (View is the default). **Enter** or **V**
   opens Omawrite, or the Omarchy editor if Omawrite is missing. **E** edits.
   Escape cancels.
-- **`'`** (next to Enter) or **Ctrl+Enter** shows the selected file in Files
-  (Nautilus selects it in the parent folder). A selected directory opens that
-  folder.
+- **`'`** (next to Enter) or **Ctrl+Enter** on a **folder** also opens it in
+  Files. On a **file**, Nautilus selects it in the parent folder.
 
 ### Install (`i Tab`)
 
@@ -245,6 +274,27 @@ list. Enter opens a terminal to install (`omarchy pkg add` or
 Same list UX as install, but only installed packages (including AUR builds
 already on the machine). Enter runs `omarchy pkg drop` (`sudo pacman -Rns`).
 
+### Settings (`, Tab`)
+
+A settings list, not a separate window. Backspace or Escape on an empty query
+goes up a page, then leaves the command.
+
+- **Search provider** — Google, DuckDuckGo, Brave, Bing, Ecosia, Kagi,
+  Startpage, or a custom URL with `%s`.
+- **Maps provider** — Google Maps, OpenStreetMap, Bing Maps, Apple Maps,
+  DuckDuckGo Maps, Kagi Maps, or a custom URL with `%s`.
+- **Aliases** — the merged `w Tab` shortcuts. Type `name  url` and Enter to
+  add or update (example: `fj  git.ammoseek.com/explore/repos`). Enter on a
+  row to edit the URL. Delete removes it (defaults are written as `false` so
+  they stay gone). Alias changes from this UI go to
+  `~/.config/omarchy/tabarchy-settings.json` so comments in `tabarchy.jsonc`
+  are left alone.
+- **Edit config file** — opens `~/.config/omarchy/tabarchy.jsonc` in the
+  Omarchy editor. Copies the starter file first if you do not have one.
+
+These aliases and providers are a starting set. Customize them for your own
+workflow.
+
 ## Keys
 
 These are handled only while the Super+Space overlay has focus. They are not
@@ -252,7 +302,7 @@ global Hyprland binds.
 
 | Key | Action |
 |---|---|
-| Tab | enter a matching one-letter command, or leave it |
+| Tab | enter a matching one-character command, or leave it |
 | Escape | clear the query, then leave the command, then close the menu |
 | Backspace / Left on an empty query | leave the command (or go back a menu) |
 | Enter / Right | activate the highlighted row |
@@ -260,7 +310,8 @@ global Hyprland binds.
 | **Ctrl+J / Ctrl+K** | Down / Up |
 | Page Up / Page Down | jump six rows |
 | Super+V / Ctrl+V / Shift+Insert | paste clipboard into the current query |
-| `'` or Ctrl+Enter | in `f Tab`, show the selected file in Files |
+| `'` or Ctrl+Enter | in `f Tab`, open a folder in Files, or show a file there |
+| Delete | in `, Tab` aliases, remove the highlighted shortcut |
 | V / E | in the markdown prompt, View / Edit |
 
 `? Tab` shows those navigation keys in a footer under the command list.
@@ -275,8 +326,9 @@ still apply:
 ```
 
 A starter file ships in this repo as `tabarchy.jsonc`. Copy it only if you want
-to change commands. Tabarchy does not write that file for you. Set a letter to
-`false` to disable a default, or add another letter:
+to change commands. `, Tab` does not rewrite that file; alias edits from
+settings go to `tabarchy-settings.json`. Set a letter to `false` to disable a
+default, or add another letter:
 
 ```jsonc
 {
@@ -301,6 +353,8 @@ Placeholders in `action`:
 `"kind": "files"` lists `fd` matches under `$HOME`.
 `"kind": "help"` lists every enabled command (`? Tab`).
 `"kind": "web"` lists aliases, opens a URL, or searches.
+`"kind": "maps"` opens an address with the configured maps provider (`m Tab`).
+`"kind": "settings"` is the settings command (`, Tab`).
 `"kind": "packages"` searches and installs (`omarchy pkg add` / `omarchy pkg aur add`).
 `"kind": "remove-packages"` searches installed packages and removes them
 (`omarchy pkg drop`).

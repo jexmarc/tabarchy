@@ -23,20 +23,25 @@ if [[ $path != /* ]]; then
   exit 1
 fi
 
-if [[ $mode == reveal ]]; then
+open_directory() {
   if command -v nautilus >/dev/null 2>&1; then
-    if [[ -d $path ]]; then
-      exec uwsm-app -- nautilus --new-window "$path"
-    fi
+    exec uwsm-app -- nautilus --new-window "$path"
+  fi
+  exec uwsm-app -- xdg-open "$path"
+}
+
+if [[ $mode == reveal ]]; then
+  if [[ -d $path ]]; then
+    open_directory
+  fi
+  if command -v nautilus >/dev/null 2>&1; then
     exec uwsm-app -- nautilus --select "$path"
   fi
-  parent=$path
-  [[ -d $path ]] || parent=$(dirname -- "$path")
-  exec uwsm-app -- xdg-open "$parent"
+  exec uwsm-app -- xdg-open "$(dirname -- "$path")"
 fi
 
 if [[ -d $path ]]; then
-  exec uwsm-app -- xdg-open "$path"
+  open_directory
 fi
 
 desktop_file() {

@@ -38,6 +38,10 @@ function searchProviders() {
   }
 }
 
+function searchProviderOrder() {
+  return ["google", "ddg", "brave", "bing", "ecosia", "kagi", "startpage"]
+}
+
 function resolveSearchProvider(value) {
   var raw = String(value || "google").trim()
   if (!raw) raw = "google"
@@ -45,14 +49,87 @@ function resolveSearchProvider(value) {
   if (key === "duckduckgo" || key === "duck" || key === "ddg") key = "ddg"
   var providers = searchProviders()
   if (providers[key]) return providers[key]
-  if (raw.indexOf("%s") >= 0 || raw.indexOf("{{query") >= 0) {
+  if (isProviderTemplate(raw)) {
     return {
       id: "custom",
-      name: "Search",
+      name: "Custom",
       url: raw.replace(/%s/g, "{{query_encoded}}")
     }
   }
   return providers.google
+}
+
+function mapsProviders() {
+  return {
+    google: { id: "google", name: "Google Maps", url: "https://www.google.com/maps/search/?api=1&query={{query_encoded}}" },
+    osm: { id: "osm", name: "OpenStreetMap", url: "https://www.openstreetmap.org/search?query={{query_encoded}}" },
+    bing: { id: "bing", name: "Bing Maps", url: "https://www.bing.com/maps?q={{query_encoded}}" },
+    apple: { id: "apple", name: "Apple Maps", url: "https://maps.apple.com/?q={{query_encoded}}" },
+    ddg: { id: "ddg", name: "DuckDuckGo Maps", url: "https://duckduckgo.com/?q={{query_encoded}}&iaxm=maps" },
+    kagi: { id: "kagi", name: "Kagi Maps", url: "https://kagi.com/maps?q={{query_encoded}}" }
+  }
+}
+
+function mapsProviderOrder() {
+  return ["google", "osm", "bing", "apple", "ddg", "kagi"]
+}
+
+function resolveMapsProvider(value) {
+  var raw = String(value || "google").trim()
+  if (!raw) raw = "google"
+  var key = raw.toLowerCase()
+  if (key === "openstreetmap" || key === "openstreet" || key === "osm") key = "osm"
+  if (key === "duckduckgo" || key === "duck" || key === "ddg") key = "ddg"
+  if (key === "googlemaps" || key === "gmaps" || key === "maps") key = "google"
+  var providers = mapsProviders()
+  if (providers[key]) return providers[key]
+  if (isProviderTemplate(raw)) {
+    return {
+      id: "custom",
+      name: "Custom",
+      url: raw.replace(/%s/g, "{{query_encoded}}")
+    }
+  }
+  return providers.google
+}
+
+function isProviderTemplate(value) {
+  var raw = String(value || "")
+  return raw.indexOf("%s") >= 0 || raw.indexOf("{{query") >= 0
+}
+
+function expandProviderUrl(provider, query) {
+  var encoded = encodeURIComponent(String(query || ""))
+  var url = String((provider && provider.url) || "")
+  if (url.indexOf("%s") >= 0) return url.replace(/%s/g, encoded)
+  return url.replace(/\{\{query_encoded\}\}/g, encoded)
+}
+
+function providerChoices(providers, order, currentValue, resolveFn) {
+  var resolved = resolveFn(currentValue)
+  var rows = []
+  var i
+  for (i = 0; i < order.length; i++) {
+    var item = providers[order[i]]
+    if (!item) continue
+    rows.push({
+      id: item.id,
+      name: item.name,
+      url: item.url,
+      current: resolved.id === item.id
+    })
+  }
+  rows.push({
+    id: "custom",
+    name: "Custom",
+    url: resolved.id === "custom" ? resolved.url : "",
+    current: resolved.id === "custom"
+  })
+  return rows
+}
+
+function defaultMapsAction() {
+  return "omarchy-launch-browser \"https://www.google.com/maps/search/?api=1&query={{query_encoded}}\""
 }
 
 function webDestination(query, providerValue, quoteFn) {
@@ -68,12 +145,31 @@ function webDestination(query, providerValue, quoteFn) {
       action: "omarchy-launch-browser " + quote(url)
     }
   }
-  var searchUrl = String(provider.url || "").replace(/\{\{query_encoded\}\}/g, encodeURIComponent(q))
   return {
     kind: "search",
     label: "Search " + provider.name,
     detail: q,
-    action: "omarchy-launch-browser " + quote(searchUrl)
+    action: "omarchy-launch-browser " + quote(expandProviderUrl(provider, q))
+  }
+}
+
+function mapsDestination(query, providerValue, quoteFn) {
+  var q = String(query || "").trim()
+  var quote = quoteFn || shellQuote
+  var provider = resolveMapsProvider(providerValue)
+  if (!q) {
+    return {
+      kind: "maps",
+      label: provider.name,
+      detail: "",
+      action: ""
+    }
+  }
+  return {
+    kind: "maps",
+    label: provider.name,
+    detail: q,
+    action: "omarchy-launch-browser " + quote(expandProviderUrl(provider, q))
   }
 }
 
@@ -257,12 +353,14 @@ function normalizeBang(key, raw) {
   if (!value || typeof value !== "object") return null
 
   var kind = String(value.kind || (value.action ? "command" : "")).toLowerCase()
-  if (kind !== "files" && kind !== "command" && kind !== "web" && kind !== "packages" && kind !== "remove-packages" && kind !== "help") return null
+  if (!value.kind && String(value.action || "") === defaultMapsAction())
+    kind = "maps"
+  if (kind !== "files" && kind !== "command" && kind !== "web" && kind !== "packages" && kind !== "remove-packages" && kind !== "help" && kind !== "maps" && kind !== "settings") return null
   if (kind === "command" && !value.action) return null
 
   var requiresQuery = value.requiresQuery
   if (requiresQuery === undefined)
-    requiresQuery = kind === "files" || kind === "web" || kind === "packages" || kind === "remove-packages" || k === "i" || k === "r"
+    requiresQuery = kind === "files" || kind === "web" || kind === "packages" || kind === "remove-packages" || kind === "maps" || k === "i" || k === "r"
 
   return {
     key: k,
@@ -309,11 +407,11 @@ function defaults() {
       icon: "󰗵",
       iconFont: "",
       placeholder: "address",
-      label: "Google Maps",
-      help: "open an address in Google Maps",
-      kind: "command",
-      requiresQuery: false,
-      action: "omarchy-launch-browser \"https://www.google.com/maps/search/?api=1&query={{query_encoded}}\""
+      label: "Maps",
+      help: "open an address on the map",
+      kind: "maps",
+      requiresQuery: true,
+      action: ""
     },
     w: {
       key: "w",
@@ -332,16 +430,16 @@ function defaults() {
       name: "files",
       icon: "",
       iconFont: "",
-      placeholder: "filename",
+      placeholder: "file or folder",
       label: "Files",
-      help: "find a file · Enter opens · ' shows in Files",
+      help: "find a file or folder · Enter opens · ' shows in Files",
       kind: "files",
       requiresQuery: true,
       action: ""
     },
     i: {
       key: "i",
-      name: "install",
+      name: "install pkg",
       icon: "󰏔",
       iconFont: "",
       placeholder: "package",
@@ -353,7 +451,7 @@ function defaults() {
     },
     r: {
       key: "r",
-      name: "remove",
+      name: "remove pkg",
       icon: "󰆴",
       iconFont: "",
       placeholder: "package",
@@ -374,6 +472,18 @@ function defaults() {
       kind: "help",
       requiresQuery: false,
       action: ""
+    },
+    ",": {
+      key: ",",
+      name: "settings",
+      icon: "󰒓",
+      iconFont: "",
+      placeholder: "",
+      label: "Settings",
+      help: "search provider, maps, and aliases",
+      kind: "settings",
+      requiresQuery: false,
+      action: ""
     }
   }
 }
@@ -381,18 +491,19 @@ function defaults() {
 function bangHelpText(bang) {
   if (!bang) return ""
   if (bang.help) return bang.help
-  if (bang.key === "m") return "open an address in Google Maps"
+  if (bang.key === "m" || bang.kind === "maps") return "open an address on the map"
   if (bang.kind === "web") return "URL, alias, or web search"
-  if (bang.kind === "files") return "find a file · Enter opens · ' shows in Files"
+  if (bang.kind === "files") return "find a file or folder · Enter opens · ' shows in Files"
   if (bang.kind === "packages") return "search and install a package"
   if (bang.kind === "remove-packages") return "search and uninstall a package"
+  if (bang.kind === "settings") return "search provider, maps, and aliases"
   if (bang.kind === "help") return "this list"
   if (bang.placeholder) return bang.placeholder
   return bang.label || bang.name || ""
 }
 
 function helpKeys(bangs) {
-  var preferred = ["w", "f", "m", "i", "r"]
+  var preferred = ["w", "f", "m", "i", "r", ","]
   var keys = []
   var seen = {}
   var i
@@ -445,4 +556,79 @@ function fileLabel(path) {
   var slash = trimmed.lastIndexOf("/")
   if (slash < 0) return text
   return trimmed.slice(slash + 1) || text
+}
+
+function isAliasKey(key) {
+  return /^[a-z0-9][a-z0-9._-]*$/.test(String(key || ""))
+}
+
+function parseAliasInput(query) {
+  var q = String(query || "").trim()
+  if (!q) return null
+  var match = q.match(/^(\S+)\s+(\S[\s\S]*)$/)
+  if (!match) return null
+  var key = match[1].toLowerCase()
+  var url = match[2].trim()
+  if (!isAliasKey(key) || !url) return null
+  return { key: key, url: toUrl(url) }
+}
+
+function parseSettings(raw) {
+  var text = stripJsonc(raw).trim()
+  if (!text) return {}
+
+  var data
+  try {
+    data = JSON.parse(text)
+  } catch (e) {
+    return {}
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {}
+  return data
+}
+
+function settingsAliasesFromData(data) {
+  if (!data || typeof data !== "object") return {}
+  return normalizeAliasMap(data.aliases)
+}
+
+function aliasSummary(aliases) {
+  var keys = []
+  var key
+  for (key in aliases) {
+    if (!Object.prototype.hasOwnProperty.call(aliases, key)) continue
+    var alias = aliases[key]
+    if (!alias || alias.disabled) continue
+    keys.push(alias.key || key)
+  }
+  keys.sort()
+  if (keys.length === 0) return "none"
+  if (keys.length <= 4) return keys.join(", ")
+  return String(keys.length) + " shortcuts"
+}
+
+function sortedAliases(aliases) {
+  var list = []
+  var key
+  for (key in aliases) {
+    if (!Object.prototype.hasOwnProperty.call(aliases, key)) continue
+    var alias = aliases[key]
+    if (!alias || alias.disabled) continue
+    list.push({
+      key: alias.key || key,
+      name: alias.name || key,
+      url: alias.url
+    })
+  }
+  list.sort(function(a, b) {
+    return String(a.key).localeCompare(String(b.key))
+  })
+  return list
+}
+
+function settingsMatch(label, detail, path, query) {
+  var q = String(query || "").trim().toLowerCase()
+  if (!q) return true
+  var hay = (String(label || "") + " " + String(detail || "") + " " + String(path || "")).toLowerCase()
+  return hay.indexOf(q) >= 0
 }
