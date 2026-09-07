@@ -1011,16 +1011,36 @@ Item {
   // The apps provider is QML-native: rows come from the shared AppLibrary
   // (DesktopEntries) instead of a bash enumeration, so they carry image
   // icons, launch feedback, and uninstall support like the launcher.
-  function mergeAppRows() {
-    if (!root.appLibrary) return
+  function fallbackSortedEntries() {
+    var out = []
+    try {
+      var values = DesktopEntries.applications.values || []
+      for (var i = 0; i < values.length; i++) {
+        var entry = values[i]
+        if (!entry || entry.noDisplay) continue
+        var name = String(entry.name || entry.id || "")
+        if (!name) continue
+        out.push({ entry: entry, score: 0 })
+      }
+    } catch (e) {
+    }
+    return out
+  }
 
-    var rows = root.appLibrary.sortedEntries("")
+  function mergeAppRows() {
+    var rows = []
+    if (root.appLibrary) {
+      try { rows = root.appLibrary.sortedEntries("") || [] } catch (e) { rows = [] }
+    }
+    if (!rows.length) rows = root.fallbackSortedEntries()
     var appRows = []
     for (var j = 0; j < rows.length; j++) {
-      var entry = rows[j].entry
+      var packed = rows[j]
+      var entry = packed && packed.entry ? packed.entry : packed
+      if (!entry) continue
       var appId = String(entry.id || "")
       if (!appId) continue
-      var subtext = root.appLibrary.entrySubtext(entry)
+      var subtext = root.appLibrary ? root.appLibrary.entrySubtext(entry) : String(entry.genericName || "")
       var aliases = subtext ? [subtext] : []
       try {
         if (entry.keywords && typeof entry.keywords.join === "function") aliases = aliases.concat(entry.keywords)
@@ -1032,7 +1052,7 @@ Item {
         icon: "",
         appIcon: String(entry.icon || ""),
         appId: appId,
-        label: root.appLibrary.entryName(entry),
+        label: root.appLibrary ? root.appLibrary.entryName(entry) : String(entry.name || appId),
         title: "",
         target: "",
         description: subtext,
@@ -1046,9 +1066,12 @@ Item {
       })
     }
 
-    var merged = MenuModel.mergeAppRows(root.items, root.itemOrder, appRows)
-    root.items = merged.items
-    root.itemOrder = merged.itemOrder
+    try {
+      var merged = MenuModel.mergeAppRows(root.items, root.itemOrder, appRows)
+      root.items = merged.items
+      root.itemOrder = merged.itemOrder
+    } catch (e) {
+    }
     if (root.opened) root.rebuildDisplay()
   }
 
@@ -1243,6 +1266,28 @@ Item {
     return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
   }
 
+  function recoverStockRow() {
+    var id = (root.manifest && root.manifest.id) ? String(root.manifest.id) : "io.github.jexmarc.tabarchy"
+    return {
+      itemId: "tabarchy.recover",
+      disabled: false,
+      kind: "bang",
+      icon: "󰦛",
+      iconFont: "",
+      appIcon: "",
+      appId: "",
+      label: "Restore stock Super+Space menu",
+      target: "",
+      detail: "Tabarchy did not load the Omarchy menu. Enter disables Tabarchy.",
+      path: "",
+      childCount: 0,
+      action: "omarchy plugin disable " + id,
+      provider: "",
+      score: 0,
+      section: ""
+    }
+  }
+
   function rowSelectable(index) {
     if (index < 0 || index >= displayModel.count) return false
     return !displayModel.get(index).disabled
@@ -1400,6 +1445,8 @@ Item {
     }
 
     for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
+    if (rows.length === 0 && active === "root" && !query)
+      displayModel.append(root.recoverStockRow())
     layoutSerial += 1
 
     root.settleCursor()
@@ -1531,6 +1578,7 @@ Item {
       opened = false
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
+      else Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(appId + ".desktop"))
     } else {
       root.applySelected(row.itemId, row.action)
     }
@@ -1812,6 +1860,13 @@ Item {
   Connections {
     target: root.appLibrary
     function onAppsChanged() {
+      if (root.providersLoaded["apps"]) root.mergeAppRows()
+    }
+  }
+
+  Connections {
+    target: DesktopEntries.applications
+    function onValuesChanged() {
       if (root.providersLoaded["apps"]) root.mergeAppRows()
     }
   }
@@ -2358,7 +2413,7 @@ Item {
             width: Style.space(52)
             height: Style.space(10)
             anchors.right: parent.right
-            anchors.verticalCenter: bangHeader.visible ? bangHeaderText.verticalCenter : parent.verticalCenter
+            anchors.verticalCenter: parent.verticalCenter
           }
 
         }
@@ -2653,7 +2708,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.activeBang ? root.bangEmptyText() : (root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet")
+              text: root.activeBang ? root.bangEmptyText() : (root.filterText ? "No matches for “" + root.filterText + "”" : (root.activeMenu === "apps" ? "No applications found" : "Nothing here yet"))
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily

@@ -391,32 +391,76 @@ Already present on a normal Omarchy install:
 
 ## Why this stands in for the Omarchy menu
 
-Omarchy's Super+Space menu is `omarchy.menu`. It has no prefix/Tab API, so a
-third-party plugin cannot intercept one letter plus Tab without standing in for
-that menu. Tabarchy therefore sets `clonedFrom: omarchy.menu`: Super+Space,
-`omarchy menu`, and the bar icon keep working. The stock menu is not removed;
-see [Restore the stock menu](#restore-the-stock-menu).
+Omarchy's Super+Space menu is the first-party plugin `omarchy.menu`. It has
+no public API for “one character, then Tab.” A third-party plugin cannot
+add that to Super+Space unless it **stands in** for that menu. Tabarchy
+therefore sets `clonedFrom: omarchy.menu`. Super+Space, the bar icon, and
+`omarchy menu` keep working. The stock plugin is not deleted; it stays on
+the machine **disabled**. See [Restore the stock menu](#restore-the-stock-menu).
 
-That is a stand-in, not a second launcher. Tabarchy-specific code is
-`Bangs.js`, `Cli.qml`, `Scanner.qml`, `ChoiceDialog.qml`,
+That is a stand-in, not a second launcher.
+
+### What is copied vs what is Tabarchy
+
+`MenuModel.js` and `BarWidget.qml` are unmodified copies of Omarchy's.
+`Menu.qml` is Omarchy's menu plus `patches/menu.patch`. Tabarchy-only code
+is `Bangs.js`, `Cli.qml`, `Scanner.qml`, `ChoiceDialog.qml`,
 `bin/omarchy-tabarchy-search`, `bin/omarchy-tabarchy-maps`,
-`bin/tabarchy-pkg-search`, `bin/tabarchy-open`,
-and `patches/menu.patch`. `MenuModel.js` and `BarWidget.qml` are unmodified
-copies of Omarchy's. `Menu.qml` is Omarchy's menu plus that patch.
+`bin/tabarchy-pkg-search`, `bin/tabarchy-open`, and that patch.
 
-`omarchy plugin update io.github.jexmarc.tabarchy` fast-forwards **this** git
-repo. It does not pull Omarchy menu fixes. After an update run
-`omarchy restart shell`. After an Omarchy update, rebase the stand-in onto the
-new menu:
+`omarchy plugin update` fast-forwards **this** git repo. It does not, by
+itself, pull a newer Omarchy menu into `Menu.qml`.
+
+### Omarchy updates
+
+While Tabarchy is enabled it installs
+`~/.config/omarchy/hooks/post-update.d/tabarchy-post-update.sh`. After
+`omarchy update` that hook:
+
+1. Rebases `Menu.qml` onto the new first-party menu (`refresh-from-omarchy.sh`)
+2. Restarts the shell if the patch applied
+3. If the patch **does not** apply, **leaves the last working menu on disk**
+   and sends a desktop notification. Super+Space does not go blank.
+
+You can rebase by hand the same way:
 
 ```bash
 ~/.config/omarchy/plugins/io.github.jexmarc.tabarchy/scripts/refresh-from-omarchy.sh
 omarchy restart shell
 ```
 
-If the patch no longer applies, the script leaves `Menu.qml` unchanged and
-exits non-zero. The plugin keeps working with the last patched menu until the
-patch is updated for that Omarchy version.
+The Apps list (`Super+Alt+Space`) uses Omarchy's app library when the host
+injects one. If that API is missing or returns nothing (Omarchy has changed
+how third-party menus see apps), Tabarchy falls back to Quickshell
+`DesktopEntries`. That covers both the older full `shell.appLibrary` and the
+newer isolated wrapper.
+
+If the **root** menu fails to load at all, Super+Space shows a selectable
+**Restore stock Super+Space menu** row (Enter disables Tabarchy) instead of
+an empty card. An empty Apps submenu says **No applications found**.
+
+### Limitations (read this)
+
+A `clonedFrom` stand-in **cannot** promise to survive every future Omarchy
+release without a Tabarchy update.
+
+- **Patch applies** (usual case): you get the new Omarchy menu plus Tab
+  commands. That is what the post-update hook is for.
+- **Patch does not apply**: you keep the **previous** Tabarchy menu. Tab
+  commands still work. New Omarchy menu items from that update may be
+  missing until Tabarchy ships a new `patches/menu.patch`.
+- **Host API change** (example: app list wrapped for third-party menus):
+  Tabarchy tries the host API, then a fallback. Unknown future APIs can
+  still break a feature until Tabarchy is updated. The overlay should not
+  go silently empty; you get a notice, a restore row, or “No applications
+  found.”
+- **keepLoaded**: after Tabarchy's own code changes, run
+  `omarchy restart shell`. The post-update hook does that when a rebase
+  succeeds.
+
+If Super+Space looks wrong after an Omarchy update, check the notification,
+run the refresh script, or disable Tabarchy to get the stock menu back
+immediately.
 
 ## License
 

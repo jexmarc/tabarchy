@@ -25,6 +25,9 @@ trap 'rm -rf "$work"' EXIT
 cp "$stock/Menu.qml" "$work/Menu.qml"
 
 if ! patch -p0 --directory "$work" --forward --batch <"$patch"; then
+  if command -v omarchy-notification-send >/dev/null 2>&1; then
+    omarchy-notification-send -g 󰍜 "Tabarchy could not patch this Omarchy menu. Super+Space still uses the last working copy."
+  fi
   fail "patches/menu.patch does not apply to $(omarchy version 2>/dev/null || echo 'this Omarchy menu'). Menu.qml was not changed. See README."
 fi
 
