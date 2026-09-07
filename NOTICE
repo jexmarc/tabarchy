@@ -3,4 +3,7 @@ Omarchy's first-party omarchy.menu plugin (David Heinemeier Hansson).
 
 Tabarchy-specific behavior lives in Bangs.js, Cli.qml, Scanner.qml,
 ChoiceDialog.qml, patches/menu.patch, bin/omarchy-tabarchy-search,
-bin/tabarchy-pkg-search, and bin/tabarchy-open.
+bin/omarchy-tabarchy-maps, bin/tabarchy-pkg-search, and bin/tabarchy-open.
+Settings from `, Tab` are stored in the user's
+~/.config/omarchy/tabarchy-settings.json and
+~/.config/omarchy/defaults/{search,maps}.

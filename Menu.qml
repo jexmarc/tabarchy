@@ -427,7 +427,7 @@ Item {
         var searchLabel = (search.current ? "✓  " : "") + search.name
         var searchDetail = search.id === "custom" ? (search.url || "URL with %s") : ""
         if (!Bangs.settingsMatch(searchLabel, searchDetail, search.id, q) && search.id !== "custom") continue
-        if (search.id === "custom" && q && !Bangs.settingsMatch(searchLabel, searchDetail, search.id, q) && !Bangs.isProviderTemplate(q)) continue
+        if (search.id === "custom" && q && !Bangs.settingsMatch(searchLabel, searchDetail, search.id, q) && !Bangs.isHttpProviderTemplate(q)) continue
         rows.push({
           itemId: "bang.settings.search." + search.id,
           icon: "󰍉",
@@ -445,7 +445,7 @@ Item {
         var mapsLabel = (maps.current ? "✓  " : "") + maps.name
         var mapsDetail = maps.id === "custom" ? (maps.url || "URL with %s") : ""
         if (!Bangs.settingsMatch(mapsLabel, mapsDetail, maps.id, q) && maps.id !== "custom") continue
-        if (maps.id === "custom" && q && !Bangs.settingsMatch(mapsLabel, mapsDetail, maps.id, q) && !Bangs.isProviderTemplate(q)) continue
+        if (maps.id === "custom" && q && !Bangs.settingsMatch(mapsLabel, mapsDetail, maps.id, q) && !Bangs.isHttpProviderTemplate(q)) continue
         rows.push({
           itemId: "bang.settings.maps." + maps.id,
           icon: "󰗵",
@@ -1604,10 +1604,10 @@ Item {
     } else if (target === "set-maps") {
       root.setMapsProviderValue(row.path)
     } else if (target === "set-search-custom") {
-      if (Bangs.isProviderTemplate(query)) root.setSearchProviderValue(query)
+      if (Bangs.isHttpProviderTemplate(query)) root.setSearchProviderValue(query)
       else if (query) return
     } else if (target === "set-maps-custom") {
-      if (Bangs.isProviderTemplate(query)) root.setMapsProviderValue(query)
+      if (Bangs.isHttpProviderTemplate(query)) root.setMapsProviderValue(query)
       else if (query) return
     } else if (target === "alias-add") {
       var parsedAdd = Bangs.parseAliasInput(root.bangQuery)

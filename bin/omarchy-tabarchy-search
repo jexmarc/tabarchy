@@ -81,9 +81,10 @@ esac
 
 value="$1"
 canonical=""
+value_lc="${value,,}"
 if canonical=$(normalize "$value"); then
   value="$canonical"
-elif [[ $value == *'%s'* || $value == *'{{query'* ]]; then
+elif [[ ( $value_lc == http://* || $value_lc == https://* ) && ( $value == *'%s'* || $value == *'{{query'* ) ]]; then
   :
 else
   usage >&2

@@ -8,10 +8,21 @@ function shellQuote(value) {
   return "'" + String(value || "").replace(/'/g, "'\\''") + "'"
 }
 
+function schemeOf(value) {
+  var match = String(value || "").trim().match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/)
+  return match ? match[1].toLowerCase() : ""
+}
+
+function isHttpUrl(value) {
+  var scheme = schemeOf(value)
+  return scheme === "http" || scheme === "https"
+}
+
 function toUrl(query) {
   var q = String(query || "").trim()
   if (!q) return ""
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(q)) return q
+  var scheme = schemeOf(q)
+  if (scheme) return (scheme === "http" || scheme === "https") ? q : ""
   if (q.slice(0, 2) === "//") return "https:" + q
   return "https://" + q
 }
@@ -19,7 +30,8 @@ function toUrl(query) {
 function looksLikeUrl(query) {
   var q = String(query || "").trim()
   if (!q || /\s/.test(q)) return false
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(q)) return true
+  var scheme = schemeOf(q)
+  if (scheme) return scheme === "http" || scheme === "https"
   if (q.slice(0, 2) === "//") return true
   if (/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?([/?#].*)?$/i.test(q)) return true
   if (/^(\d{1,3}\.){3}\d{1,3}(:\d+)?([/?#].*)?$/.test(q)) return true
@@ -49,7 +61,7 @@ function resolveSearchProvider(value) {
   if (key === "duckduckgo" || key === "duck" || key === "ddg") key = "ddg"
   var providers = searchProviders()
   if (providers[key]) return providers[key]
-  if (isProviderTemplate(raw)) {
+  if (isHttpProviderTemplate(raw)) {
     return {
       id: "custom",
       name: "Custom",
@@ -83,7 +95,7 @@ function resolveMapsProvider(value) {
   if (key === "googlemaps" || key === "gmaps" || key === "maps") key = "google"
   var providers = mapsProviders()
   if (providers[key]) return providers[key]
-  if (isProviderTemplate(raw)) {
+  if (isHttpProviderTemplate(raw)) {
     return {
       id: "custom",
       name: "Custom",
@@ -96,6 +108,15 @@ function resolveMapsProvider(value) {
 function isProviderTemplate(value) {
   var raw = String(value || "")
   return raw.indexOf("%s") >= 0 || raw.indexOf("{{query") >= 0
+}
+
+function isHttpProviderTemplate(value) {
+  if (!isProviderTemplate(value)) return false
+  var raw = String(value || "").trim()
+  var probe = raw.replace(/%s/g, "x").replace(/\{\{query[^}]*\}\}/g, "x")
+  if (isHttpUrl(probe) || isHttpUrl(raw)) return true
+  if (raw.slice(0, 2) === "//") return true
+  return false
 }
 
 function expandProviderUrl(provider, query) {
@@ -138,11 +159,13 @@ function webDestination(query, providerValue, quoteFn) {
   var provider = resolveSearchProvider(providerValue)
   if (looksLikeUrl(q)) {
     var url = toUrl(q)
-    return {
-      kind: "url",
-      label: "Open URL",
-      detail: url,
-      action: "omarchy-launch-browser " + quote(url)
+    if (url) {
+      return {
+        kind: "url",
+        label: "Open URL",
+        detail: url,
+        action: "omarchy-launch-browser " + quote(url)
+      }
     }
   }
   return {
@@ -212,9 +235,9 @@ function normalizeAliasMap(raw) {
       url = String(value.url || value.action || "")
       if (value.name) name = String(value.name)
     }
-    url = String(url || "").trim()
+    url = toUrl(url)
     if (!url) continue
-    out[k] = { key: k, name: name, url: toUrl(url) }
+    out[k] = { key: k, name: name, url: url }
   }
   return out
 }
@@ -568,9 +591,9 @@ function parseAliasInput(query) {
   var match = q.match(/^(\S+)\s+(\S[\s\S]*)$/)
   if (!match) return null
   var key = match[1].toLowerCase()
-  var url = match[2].trim()
+  var url = toUrl(match[2].trim())
   if (!isAliasKey(key) || !url) return null
-  return { key: key, url: toUrl(url) }
+  return { key: key, url: url }
 }
 
 function parseSettings(raw) {

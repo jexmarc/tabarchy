@@ -146,8 +146,8 @@ The CLI disables Tabarchy first, prints `Restored omarchy.menu.`, then deletes
 the plugin checkout. Super+Space, the bar icon, and `omarchy menu` are the
 stock Omarchy menu again. No Omarchy restart is required.
 
-That also removes the `~/.local/bin/omarchy-tabarchy-search` symlink Tabarchy
-created.
+That also removes the `~/.local/bin/omarchy-tabarchy-search` and
+`~/.local/bin/omarchy-tabarchy-maps` symlinks Tabarchy created.
 
 ### What is left on disk
 
@@ -370,7 +370,9 @@ you would run yourself.
 
 Searches (`fd`, `pacman`, `yay`) and file opens pass arguments as argv, not
 through a shell. Package install/remove names are shell-quoted before they go
-to `omarchy-pkg-*`. File open requires an absolute path.
+to `omarchy-pkg-*`. File open requires an absolute path. `w Tab` aliases,
+typed URLs, and custom search/maps templates only open `http:` and `https:`
+addresses (`javascript:`, `file:`, and other schemes are ignored).
 
 ## Dependencies
 
@@ -397,7 +399,8 @@ see [Restore the stock menu](#restore-the-stock-menu).
 
 That is a stand-in, not a second launcher. Tabarchy-specific code is
 `Bangs.js`, `Cli.qml`, `Scanner.qml`, `ChoiceDialog.qml`,
-`bin/omarchy-tabarchy-search`, `bin/tabarchy-pkg-search`, `bin/tabarchy-open`,
+`bin/omarchy-tabarchy-search`, `bin/omarchy-tabarchy-maps`,
+`bin/tabarchy-pkg-search`, `bin/tabarchy-open`,
 and `patches/menu.patch`. `MenuModel.js` and `BarWidget.qml` are unmodified
 copies of Omarchy's. `Menu.qml` is Omarchy's menu plus that patch.
 
