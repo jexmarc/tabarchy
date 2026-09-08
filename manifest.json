@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.jexmarc.tabarchy",
   "name": "Tabarchy",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "author": "jexmarc",
   "license": "MIT",
   "description": "Super+Space menu with Tab commands for web, files, maps, packages, settings, and help.",

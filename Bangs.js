@@ -503,7 +503,7 @@ function defaults() {
       iconFont: "",
       placeholder: "",
       label: "Settings",
-      help: "search provider, maps, and aliases",
+      help: "search provider, maps, aliases, and updates",
       kind: "settings",
       requiresQuery: false,
       action: ""
@@ -519,7 +519,7 @@ function bangHelpText(bang) {
   if (bang.kind === "files") return "find a file or folder · Enter opens · ' shows in Files"
   if (bang.kind === "packages") return "search and install a package"
   if (bang.kind === "remove-packages") return "search and uninstall a package"
-  if (bang.kind === "settings") return "search provider, maps, and aliases"
+  if (bang.kind === "settings") return "search provider, maps, aliases, and updates"
   if (bang.kind === "help") return "this list"
   if (bang.placeholder) return bang.placeholder
   return bang.label || bang.name || ""
@@ -608,6 +608,10 @@ function parseSettings(raw) {
   }
   if (!data || typeof data !== "object" || Array.isArray(data)) return {}
   return data
+}
+
+function postUpdateHookEnabled(data) {
+  return !!(data && typeof data === "object" && data.postUpdateHook === true)
 }
 
 function settingsAliasesFromData(data) {

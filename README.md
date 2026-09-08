@@ -147,7 +147,9 @@ the plugin checkout. Super+Space, the bar icon, and `omarchy menu` are the
 stock Omarchy menu again. No Omarchy restart is required.
 
 That also removes the `~/.local/bin/omarchy-tabarchy-search` and
-`~/.local/bin/omarchy-tabarchy-maps` symlinks Tabarchy created.
+`~/.local/bin/omarchy-tabarchy-maps` symlinks, and the opt-in post-update
+hook, but only when those paths still belong to this plugin. Foreign files
+at the same names are left alone.
 
 ### What is left on disk
 
@@ -233,8 +235,10 @@ not read browser bookmarks.
 
 The search provider is `~/.config/omarchy/defaults/search`. Change it from
 `, Tab` or with the CLI. Enabling the plugin puts `omarchy-tabarchy-search`
-and `omarchy-tabarchy-maps` on your PATH (`~/.local/bin`). Those symlinks are
-removed when you disable or uninstall Tabarchy.
+and `omarchy-tabarchy-maps` on your PATH (`~/.local/bin`) when those names
+are free or already our symlinks. A foreign file at either name is not
+replaced. Those owned symlinks are removed when you disable or uninstall
+Tabarchy.
 
 ```
 omarchy-tabarchy-search                 # print current provider
@@ -289,6 +293,10 @@ goes up a page, then leaves the command.
   they stay gone). Alias changes from this UI go to
   `~/.config/omarchy/tabarchy-settings.json` so comments in `tabarchy.jsonc`
   are left alone.
+- **After Omarchy updates** — Off by default. Enter opts in: Tabarchy
+  installs a post-update hook that **notifies** you if Omarchy's menu
+  changed. It does not rewrite Tabarchy's reviewed menu files. Enter again
+  turns it off and removes our hook.
 - **Edit config file** — opens `~/.config/omarchy/tabarchy.jsonc` in the
   Omarchy editor. Copies the starter file first if you do not have one.
 
@@ -372,7 +380,10 @@ Searches (`fd`, `pacman`, `yay`) and file opens pass arguments as argv, not
 through a shell. Package install/remove names are shell-quoted before they go
 to `omarchy-pkg-*`. File open requires an absolute path. `w Tab` aliases,
 typed URLs, and custom search/maps templates only open `http:` and `https:`
-addresses (`javascript:`, `file:`, and other schemes are ignored).
+addresses (`javascript:`, `file:`, and other schemes are ignored). Enabling
+the plugin does not replace foreign `~/.local/bin` files or install a
+post-update hook; that hook is off until you opt in from `, Tab`, and it
+never copies Omarchy menu files into the plugin.
 
 ## Dependencies
 
@@ -406,28 +417,37 @@ That is a stand-in, not a second launcher.
 `Menu.qml` is Omarchy's menu plus `patches/menu.patch`. Tabarchy-only code
 is `Bangs.js`, `Cli.qml`, `Scanner.qml`, `ChoiceDialog.qml`,
 `bin/omarchy-tabarchy-search`, `bin/omarchy-tabarchy-maps`,
-`bin/tabarchy-pkg-search`, `bin/tabarchy-open`, and that patch.
+`bin/tabarchy-pkg-search`, `bin/tabarchy-open`, `omarchy-baseline`, and
+that patch.
 
-`omarchy plugin update` fast-forwards **this** git repo. It does not, by
-itself, pull a newer Omarchy menu into `Menu.qml`.
+Those menu files are the Marketplace-reviewed snapshot. `omarchy plugin
+update` fast-forwards **this** git repo to a newly validated version. It
+does not copy a newer Omarchy menu from `/usr/share/omarchy` into the
+plugin.
 
 ### Omarchy updates
 
-While Tabarchy is enabled it installs
-`~/.config/omarchy/hooks/post-update.d/tabarchy-post-update.sh`. After
-`omarchy update` that hook:
-
-1. Rebases `Menu.qml` onto the new first-party menu (`refresh-from-omarchy.sh`)
-2. Restarts the shell if the patch applied
-3. If the patch **does not** apply, **leaves the last working menu on disk**
-   and sends a desktop notification. Super+Space does not go blank.
-
-You can rebase by hand the same way:
+`omarchy update` does not rewrite Tabarchy's reviewed `Menu.qml`,
+`MenuModel.js`, or `BarWidget.qml`. Super+Space keeps the last reviewed
+snapshot. New Omarchy menu items arrive when you update Tabarchy:
 
 ```bash
-~/.config/omarchy/plugins/io.github.jexmarc.tabarchy/scripts/refresh-from-omarchy.sh
+omarchy plugin update io.github.jexmarc.tabarchy
 omarchy restart shell
 ```
+
+That is the version-bound update path. `, Tab` → **After Omarchy updates**
+(off by default) is explicit consent to install
+`~/.config/omarchy/hooks/post-update.d/tabarchy-post-update.sh`. After
+`omarchy update` that hook compares Omarchy's stock menu to
+`omarchy-baseline` and notifies if it changed. It never copies from
+`/usr/share/omarchy` into the plugin.
+
+Disable or uninstall removes that hook only when it still belongs to
+Tabarchy (our symlink, matching content, or the `tabarchy-owned` marker).
+
+`scripts/refresh-from-omarchy.sh --write-snapshot` is a maintainer tool
+for cutting a new snapshot. It is not run automatically.
 
 The Apps list (`Super+Alt+Space`) uses Omarchy's app library when the host
 injects one. If that API is missing or returns nothing (Omarchy has changed
@@ -444,23 +464,22 @@ an empty card. An empty Apps submenu says **No applications found**.
 A `clonedFrom` stand-in **cannot** promise to survive every future Omarchy
 release without a Tabarchy update.
 
-- **Patch applies** (usual case): you get the new Omarchy menu plus Tab
-  commands. That is what the post-update hook is for.
-- **Patch does not apply**: you keep the **previous** Tabarchy menu. Tab
-  commands still work. New Omarchy menu items from that update may be
-  missing until Tabarchy ships a new `patches/menu.patch`.
+- **Tabarchy is current** (usual case): you have the last reviewed Omarchy
+  menu plus Tab commands. Update Tabarchy after Omarchy releases to pick
+  up new first-party menu items.
+- **Omarchy moved on**: you keep the **previous** reviewed Tabarchy menu.
+  Tab commands still work. New Omarchy menu items from that update may be
+  missing until Tabarchy ships a newly validated snapshot.
 - **Host API change** (example: app list wrapped for third-party menus):
   Tabarchy tries the host API, then a fallback. Unknown future APIs can
   still break a feature until Tabarchy is updated. The overlay should not
   go silently empty; you get a notice, a restore row, or “No applications
   found.”
 - **keepLoaded**: after Tabarchy's own code changes, run
-  `omarchy restart shell`. The post-update hook does that when a rebase
-  succeeds.
+  `omarchy restart shell`.
 
-If Super+Space looks wrong after an Omarchy update, check the notification,
-run the refresh script, or disable Tabarchy to get the stock menu back
-immediately.
+If Super+Space looks wrong after an Omarchy update, check the notification
+or disable Tabarchy to get the stock menu back immediately.
 
 ## License
 

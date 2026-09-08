@@ -1,0 +1,6 @@
+# Stock omarchy.menu files this Tabarchy snapshot was built from.
+# Runtime code must not copy these from /usr/share/omarchy.
+omarchy_version=4.0.0.r2083.gd504061-1
+Menu.qml=343395c8d8e90992cdbd44c1b31a4606e4f04f5b13d0dbd8940ebd10ab506fd6
+MenuModel.js=e75faf23e1c4bdd341689c49f236cdbfa7144267bd9aa65186e339a9240137d1
+BarWidget.qml=ad201156483711ba77ec97303183bc02922248e97ac0c0b8ea30d250e57cd0af

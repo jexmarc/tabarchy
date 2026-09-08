@@ -8,7 +8,8 @@ import "MenuModel.js" as MenuModel
 import "Bangs.js" as Bangs
 
 // Derived from Omarchy's omarchy.menu Menu.qml. Tabarchy-only behavior is
-// the patch in patches/menu.patch; refresh with scripts/refresh-from-omarchy.sh.
+// the patch in patches/menu.patch. Do not overwrite these files from
+// /usr/share/omarchy at runtime; cut a new plugin snapshot instead.
 
 Item {
   id: root
@@ -508,10 +509,12 @@ Item {
       var searchName = Bangs.resolveSearchProvider(root.searchProvider).name
       var mapsName = Bangs.resolveMapsProvider(root.mapsProvider).name
       var aliasDetail = Bangs.aliasSummary(root.webAliases)
+      var hookOn = Bangs.postUpdateHookEnabled(root.settingsData)
       var rootRows = [
         { itemId: "bang.settings.search", icon: "󰍉", label: "Search provider", detail: searchName, target: "search", childCount: 1 },
         { itemId: "bang.settings.maps", icon: "󰗵", label: "Maps provider", detail: mapsName, target: "maps", childCount: 1 },
         { itemId: "bang.settings.aliases", icon: "", label: "Aliases", detail: aliasDetail, target: "aliases", childCount: 1 },
+        { itemId: "bang.settings.hook", icon: "󰚰", label: "After Omarchy updates", detail: hookOn ? "On — notify, keep the reviewed menu" : "Off — keep the reviewed menu until Tabarchy updates", target: "toggle-hook" },
         { itemId: "bang.settings.edit", icon: "", label: "Edit config file", detail: "~/.config/omarchy/tabarchy.jsonc", target: "edit-config" }
       ]
       for (i = 0; i < rootRows.length; i++) {
@@ -543,6 +546,31 @@ Item {
     settingsWriteProc.running = false
     settingsWriteProc.command = ["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1.tmp\" && mv \"$1.tmp\" \"$1\"", "tabarchy-settings", root.settingsPath, text]
     settingsWriteProc.running = true
+  }
+
+  function cloneSettingsData() {
+    var src = root.settingsData || {}
+    var data = {}
+    var field
+    for (field in src) {
+      if (Object.prototype.hasOwnProperty.call(src, field))
+        data[field] = src[field]
+    }
+    return data
+  }
+
+  function writeSettingsData(data) {
+    root.settingsData = data
+    root.settingsAliases = Bangs.settingsAliasesFromData(data)
+    root.refreshWebAliases()
+    root.writeSettingsText(JSON.stringify(data, null, 2) + "\n")
+  }
+
+  function setPostUpdateHook(enabled) {
+    var data = root.cloneSettingsData()
+    data.postUpdateHook = !!enabled
+    root.writeSettingsData(data)
+    root.rebuildDisplay()
   }
 
   function setSettingsAlias(key, value) {
@@ -1647,6 +1675,8 @@ Item {
       root.openSettingsPage(target, "")
     } else if (target === "edit-config") {
       root.openTabarchyConfig()
+    } else if (target === "toggle-hook") {
+      root.setPostUpdateHook(!Bangs.postUpdateHookEnabled(root.settingsData))
     } else if (target === "set-search") {
       root.setSearchProviderValue(row.path)
     } else if (target === "set-maps") {

@@ -1,17 +1,18 @@
 --- Menu.qml
 +++ Menu.qml
-@@ -5,6 +5,10 @@
+@@ -5,6 +5,11 @@
  import qs.Commons
  import qs.Ui
  import "MenuModel.js" as MenuModel
 +import "Bangs.js" as Bangs
 +
 +// Derived from Omarchy's omarchy.menu Menu.qml. Tabarchy-only behavior is
-+// the patch in patches/menu.patch; refresh with scripts/refresh-from-omarchy.sh.
++// the patch in patches/menu.patch. Do not overwrite these files from
++// /usr/share/omarchy at runtime; cut a new plugin snapshot instead.
  
  Item {
    id: root
-@@ -64,6 +68,33 @@
+@@ -64,6 +69,33 @@
    property bool rowsLoaded: false
    property string activeMenu: "root"
    property string filterText: ""
@@ -45,7 +46,7 @@
    property int selectedIndex: 0
    property bool cursorActive: false
    property int requestSerial: 0
-@@ -80,7 +111,14 @@
+@@ -80,7 +112,14 @@
    readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
    property bool deleteConfirmOpen: false
    property var deleteTarget: null
@@ -61,7 +62,7 @@
    // Bound to the central [menu] section in shell.toml via Color.qml.
    // Each color already includes its alpha companion (composed in the
    // singleton), so consumers can drop them straight into a Rectangle.
-@@ -97,7 +135,12 @@
+@@ -97,7 +136,12 @@
    readonly property real rowReservedBorderRight: Border.right(selectedBorderSpec)
    readonly property int cornerRadius: Style.cornerRadius
    property int contentMargin: Style.spacing.panelPadding
@@ -75,7 +76,7 @@
    property int contentSpacing: Style.spacing.md
    property int baseRowHeight: Math.max(Style.space(50), Style.font.body + Style.spacing.rowPaddingX * 2)
    property int detailRowHeight: Math.max(Style.space(58), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
-@@ -108,11 +151,30 @@
+@@ -108,43 +152,751 @@
    property int dividerHeight: Style.space(17)
    property bool searchDivider: false
    property int layoutSerial: 0
@@ -107,12 +108,48 @@
 +    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + (root.pkgDetailVisible ? contentSpacing + pkgDetailHeight : 0) + (root.navPane ? contentSpacing + helpNavHeight : 0), panel.height - Style.gapsOut * 2)
  
    function finishRequest(selection) {
-     if (!root.requestActive || !root.doneFile) {
-@@ -144,7 +206,669 @@
-   // Menu rows only surface their detail while a search is narrowing them;
-   // dmenu rows carry caller-supplied subtext that must always be visible.
-   function rowHeightForDetail(detail) {
--    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
+-    if (!root.requestActive || !root.doneFile) {
+-      root.opened = false
+-      return
+-    }
+-
+-    var activeSelectionFile = root.selectionFile
+-    var activeDoneFile = root.doneFile
+-    root.requestActive = false
+-    root.selectionFile = ""
+-    root.doneFile = ""
+-
+-    if (selection === null || selection === undefined) {
+-      resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
++    if (!root.requestActive || !root.doneFile) {
++      root.opened = false
++      return
++    }
++
++    var activeSelectionFile = root.selectionFile
++    var activeDoneFile = root.doneFile
++    root.requestActive = false
++    root.selectionFile = ""
++    root.doneFile = ""
++
++    if (selection === null || selection === undefined) {
++      resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
++    } else {
++      resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
++    }
++    resultProc.running = true
++  }
++
++  function runAction(action) {
++    var command = String(action || "")
++    if (!command) return
++
++    Util.execDetached(command)
++  }
++
++  // Menu rows only surface their detail while a search is narrowing them;
++  // dmenu rows carry caller-supplied subtext that must always be visible.
++  function rowHeightForDetail(detail) {
 +    return (root.filterText || root.dmenuActive || root.activeBang) && detail ? root.detailRowHeight : root.baseRowHeight
 +  }
 +
@@ -415,10 +452,12 @@
 +      var searchName = Bangs.resolveSearchProvider(root.searchProvider).name
 +      var mapsName = Bangs.resolveMapsProvider(root.mapsProvider).name
 +      var aliasDetail = Bangs.aliasSummary(root.webAliases)
++      var hookOn = Bangs.postUpdateHookEnabled(root.settingsData)
 +      var rootRows = [
 +        { itemId: "bang.settings.search", icon: "󰍉", label: "Search provider", detail: searchName, target: "search", childCount: 1 },
 +        { itemId: "bang.settings.maps", icon: "󰗵", label: "Maps provider", detail: mapsName, target: "maps", childCount: 1 },
 +        { itemId: "bang.settings.aliases", icon: "", label: "Aliases", detail: aliasDetail, target: "aliases", childCount: 1 },
++        { itemId: "bang.settings.hook", icon: "󰚰", label: "After Omarchy updates", detail: hookOn ? "On — notify, keep the reviewed menu" : "Off — keep the reviewed menu until Tabarchy updates", target: "toggle-hook" },
 +        { itemId: "bang.settings.edit", icon: "", label: "Edit config file", detail: "~/.config/omarchy/tabarchy.jsonc", target: "edit-config" }
 +      ]
 +      for (i = 0; i < rootRows.length; i++) {
@@ -450,6 +489,31 @@
 +    settingsWriteProc.running = false
 +    settingsWriteProc.command = ["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1.tmp\" && mv \"$1.tmp\" \"$1\"", "tabarchy-settings", root.settingsPath, text]
 +    settingsWriteProc.running = true
++  }
++
++  function cloneSettingsData() {
++    var src = root.settingsData || {}
++    var data = {}
++    var field
++    for (field in src) {
++      if (Object.prototype.hasOwnProperty.call(src, field))
++        data[field] = src[field]
++    }
++    return data
++  }
++
++  function writeSettingsData(data) {
++    root.settingsData = data
++    root.settingsAliases = Bangs.settingsAliasesFromData(data)
++    root.refreshWebAliases()
++    root.writeSettingsText(JSON.stringify(data, null, 2) + "\n")
++  }
++
++  function setPostUpdateHook(enabled) {
++    var data = root.cloneSettingsData()
++    data.postUpdateHook = !!enabled
++    root.writeSettingsData(data)
++    root.rebuildDisplay()
 +  }
 +
 +  function setSettingsAlias(key, value) {
@@ -745,7 +809,8 @@
 +      })
 +    } else if (bang.kind === "settings") {
 +      root.rebuildSettingsDisplay()
-+    } else {
+     } else {
+-      resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
 +      var query = root.bangQuery
 +      var missing = bang.requiresQuery && !String(query).trim()
 +      var label = bang.label || bang.name
@@ -769,8 +834,21 @@
 +        score: 0,
 +        section: ""
 +      })
-+    }
-+
+     }
+-    resultProc.running = true
+-  }
+-
+-  function runAction(action) {
+-    var command = String(action || "")
+-    if (!command) return
+ 
+-    Util.execDetached(command)
+-  }
+-
+-  // Menu rows only surface their detail while a search is narrowing them;
+-  // dmenu rows carry caller-supplied subtext that must always be visible.
+-  function rowHeightForDetail(detail) {
+-    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
 +    layoutSerial += 1
 +    root.settleCursor()
 +    Qt.callLater(function() {
@@ -779,12 +857,10 @@
    }
  
    // Height the card can devote to rows before running off the screen — or
-@@ -287,16 +1011,36 @@
+@@ -287,16 +1039,36 @@
    // The apps provider is QML-native: rows come from the shared AppLibrary
    // (DesktopEntries) instead of a bash enumeration, so they carry image
    // icons, launch feedback, and uninstall support like the launcher.
--  function mergeAppRows() {
--    if (!root.appLibrary) return
 +  function fallbackSortedEntries() {
 +    var out = []
 +    try {
@@ -800,9 +876,11 @@
 +    }
 +    return out
 +  }
- 
++
+   function mergeAppRows() {
+-    if (!root.appLibrary) return
+-
 -    var rows = root.appLibrary.sortedEntries("")
-+  function mergeAppRows() {
 +    var rows = []
 +    if (root.appLibrary) {
 +      try { rows = root.appLibrary.sortedEntries("") || [] } catch (e) { rows = [] }
@@ -821,7 +899,7 @@
        var aliases = subtext ? [subtext] : []
        try {
          if (entry.keywords && typeof entry.keywords.join === "function") aliases = aliases.concat(entry.keywords)
-@@ -308,7 +1052,7 @@
+@@ -308,7 +1080,7 @@
          icon: "",
          appIcon: String(entry.icon || ""),
          appId: appId,
@@ -830,7 +908,7 @@
          title: "",
          target: "",
          description: subtext,
-@@ -322,9 +1066,12 @@
+@@ -322,9 +1094,12 @@
        })
      }
  
@@ -846,7 +924,7 @@
      if (root.opened) root.rebuildDisplay()
    }
  
-@@ -519,6 +1266,28 @@
+@@ -519,6 +1294,28 @@
      return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
    }
  
@@ -875,7 +953,7 @@
    function rowSelectable(index) {
      if (index < 0 || index >= displayModel.count) return false
      return !displayModel.get(index).disabled
-@@ -607,6 +1376,10 @@
+@@ -607,6 +1404,10 @@
        root.rebuildDmenuDisplay()
        return
      }
@@ -886,7 +964,7 @@
  
      displayModel.clear()
  
-@@ -672,6 +1445,8 @@
+@@ -672,6 +1473,8 @@
      }
  
      for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
@@ -895,7 +973,7 @@
      layoutSerial += 1
  
      root.settleCursor()
-@@ -731,6 +1506,7 @@
+@@ -731,6 +1534,7 @@
      if (!root.item(id)) id = "root"
      if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
      root.activeMenu = id
@@ -903,7 +981,7 @@
      root.filterText = ""
      root.selectedIndex = 0
      root.cursorActive = true
-@@ -757,7 +1533,7 @@
+@@ -757,7 +1561,7 @@
    }
  
    function activateIndex(index, fromPointer) {
@@ -912,11 +990,29 @@
      if (root.dmenuActive) {
        if (root.mode === "input") {
          root.applyDmenuSelection(root.filterText)
-@@ -772,7 +1548,28 @@
-     if (!root.rowSelectable(index)) return
- 
-     var row = displayModel.get(index)
+@@ -768,29 +1572,149 @@
+       root.applyDmenuSelection(picked.detail ? picked.label + "\t" + picked.detail : picked.label)
+       return
+     }
+-
+-    if (!root.rowSelectable(index)) return
+-
+-    var row = displayModel.get(index)
 -    if (row.kind === "menu" || row.kind === "link") {
+-      root.setActiveMenu(row.target || row.itemId, true, fromPointer)
+-    } else if (row.kind === "app") {
+-      var appId = row.appId
+-      var label = row.label
+-      applySerial = requestSerial
+-      opened = false
+-      filterText = ""
+-      if (root.appLibrary) root.appLibrary.launch(appId, label)
+-    } else {
+-      root.applySelected(row.itemId, row.action)
++
++    if (!root.rowSelectable(index)) return
++
++    var row = displayModel.get(index)
 +    if (row.kind === "bang") {
 +      root.applySelected(row.itemId, row.action)
 +    } else if (row.kind === "bang-settings") {
@@ -939,19 +1035,20 @@
 +    } else if (row.kind === "bang-pkg") {
 +      root.applySelected(row.itemId, row.action)
 +    } else if (row.kind === "menu" || row.kind === "link") {
-       root.setActiveMenu(row.target || row.itemId, true, fromPointer)
-     } else if (row.kind === "app") {
-       var appId = row.appId
-@@ -781,16 +1578,113 @@
-       opened = false
-       filterText = ""
-       if (root.appLibrary) root.appLibrary.launch(appId, label)
++      root.setActiveMenu(row.target || row.itemId, true, fromPointer)
++    } else if (row.kind === "app") {
++      var appId = row.appId
++      var label = row.label
++      applySerial = requestSerial
++      opened = false
++      filterText = ""
++      if (root.appLibrary) root.appLibrary.launch(appId, label)
 +      else Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(appId + ".desktop"))
-     } else {
-       root.applySelected(row.itemId, row.action)
-     }
-   }
- 
++    } else {
++      root.applySelected(row.itemId, row.action)
++    }
++  }
++
 +  function isFileRevealKey(event) {
 +    if (!root.activeBang || root.activeBang.kind !== "files") return false
 +    if (event.key === Qt.Key_Apostrophe)
@@ -1015,6 +1112,8 @@
 +      root.openSettingsPage(target, "")
 +    } else if (target === "edit-config") {
 +      root.openTabarchyConfig()
++    } else if (target === "toggle-hook") {
++      root.setPostUpdateHook(!Bangs.postUpdateHookEnabled(root.settingsData))
 +    } else if (target === "set-search") {
 +      root.setSearchProviderValue(row.path)
 +    } else if (target === "set-maps") {
@@ -1039,9 +1138,9 @@
 +      var current = root.webAliases[row.path]
 +      root.settingsAliasKey = row.path
 +      root.openSettingsPage("alias-edit", current && current.url ? current.url : "")
-+    }
-+  }
-+
+     }
+   }
+ 
    function requestDeleteSelected() {
      if (!root.cursorActive || root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return
      var row = displayModel.get(root.selectedIndex)
@@ -1057,7 +1156,7 @@
      deleteConfirm.selectedIndex = 1
      root.deleteConfirmOpen = true
    }
-@@ -808,6 +1702,13 @@
+@@ -808,6 +1732,13 @@
      root.deleteConfirmOpen = false
      root.deleteTarget = null
      if (!target) return
@@ -1071,7 +1170,7 @@
      root.cancel()
      if (root.appLibrary) root.appLibrary.remove(target.appId, target.label)
    }
-@@ -824,6 +1725,7 @@
+@@ -824,6 +1755,7 @@
  
      applySerial = requestSerial
      opened = false
@@ -1079,7 +1178,7 @@
      filterText = ""
      root.runAction(action)
    }
-@@ -831,6 +1733,7 @@
+@@ -831,6 +1763,7 @@
    function cancel() {
      if (root.dmenuActive) root.finishRequest(null)
      opened = false
@@ -1087,7 +1186,7 @@
      filterText = ""
    }
  
-@@ -842,6 +1745,7 @@
+@@ -842,6 +1775,7 @@
      doneFile = ""
      activeMenu = root.item(initialMenu) ? initialMenu : "root"
      navStack = []
@@ -1095,7 +1194,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = true
-@@ -870,6 +1774,7 @@
+@@ -870,6 +1804,7 @@
      dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
      activeMenu = "root"
      navStack = []
@@ -1103,7 +1202,7 @@
      filterText = ""
      selectedIndex = 0
      cursorActive = mode !== "input"
-@@ -959,6 +1864,13 @@
+@@ -959,6 +1894,13 @@
      }
    }
  
@@ -1117,7 +1216,7 @@
    // The JSONC sources are watched so live edits to the default file (or the
    // user extension at ~/.config/omarchy/extensions/omarchy-menu.jsonc) take
    // effect without restarting the shell.
-@@ -981,6 +1893,189 @@
+@@ -981,6 +1923,189 @@
      onFileChanged: reload()
    }
  
@@ -1307,7 +1406,7 @@
    // ---------------------------------------------------------------- guards
    //
    // `when:` (visibility) and `checked:` (✓ marker) are bash expressions the
-@@ -1116,7 +2211,7 @@
+@@ -1116,7 +2241,7 @@
        Item {
          id: keyCatcher
          anchors.fill: parent
@@ -1316,7 +1415,7 @@
          focus: true
  
          Keys.priority: Keys.BeforeItem
-@@ -1125,24 +2220,56 @@
+@@ -1125,24 +2250,56 @@
              if (deleteConfirm.handleKey(event)) event.accepted = true
              return
            }
@@ -1378,7 +1477,7 @@
              root.select(1)
              event.accepted = true
            } else if (event.key === Qt.Key_PageUp) {
-@@ -1155,11 +2282,14 @@
+@@ -1155,11 +2312,14 @@
              if (root.dmenuActive) {
                if (root.mode === "input") root.applyDmenuSelection(root.filterText)
                else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
@@ -1394,7 +1493,7 @@
              event.accepted = true
            }
          }
-@@ -1170,8 +2300,10 @@
+@@ -1170,8 +2330,10 @@
            anchors.fill: parent
            opened: root.deleteConfirmOpen
            z: 10
@@ -1407,7 +1506,7 @@
            background: root.background
            foreground: root.foreground
            scrim: root.scrim
-@@ -1182,6 +2314,26 @@
+@@ -1182,6 +2344,26 @@
            onCanceled: root.cancelDelete()
            onConfirmed: root.confirmDelete()
          }
@@ -1434,7 +1533,7 @@
        }
  
        Column {
-@@ -1198,12 +2350,54 @@
+@@ -1198,12 +2380,54 @@
            radius: root.cornerRadius
            color: "transparent"
  
@@ -1491,7 +1590,7 @@
              color: root.foreground
              opacity: root.filterText ? 1 : 0.58
              font.family: root.fontFamily
-@@ -1211,6 +2405,17 @@
+@@ -1211,6 +2435,17 @@
              elide: Text.ElideRight
            }
  
@@ -1509,7 +1608,7 @@
          }
  
          Item {
-@@ -1224,6 +2429,7 @@
+@@ -1224,6 +2459,7 @@
              clip: true
              spacing: root.rowSpacing
              boundsBehavior: Flickable.StopAtBounds
@@ -1517,7 +1616,7 @@
  
              section.property: "section"
              section.criteria: ViewSection.FullString
-@@ -1261,16 +2467,19 @@
+@@ -1261,16 +2497,19 @@
                required property string action
                required property int childCount
                required property bool disabled
@@ -1539,7 +1638,7 @@
                radius: root.cornerRadius
                color: row.hasCursor ? root.selectedBackground : "transparent"
                borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
-@@ -1299,7 +2508,7 @@
+@@ -1299,7 +2538,7 @@
                  verticalAlignment: Text.AlignVCenter
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8)
@@ -1548,7 +1647,7 @@
                }
  
                Image {
-@@ -1316,7 +2525,7 @@
+@@ -1316,7 +2555,7 @@
                  asynchronous: true
                  anchors.left: parent.left
                  anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
@@ -1557,7 +1656,7 @@
                }
  
                Column {
-@@ -1328,27 +2537,57 @@
+@@ -1328,27 +2567,57 @@
                  anchors.verticalCenter: parent.verticalCenter
                  spacing: Style.space(3)
  
@@ -1625,7 +1724,7 @@
                    elide: Text.ElideRight
                  }
                }
-@@ -1358,7 +2597,7 @@
+@@ -1358,7 +2627,7 @@
                  width: Style.space(14)
                  anchors.right: parent.right
                  anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
@@ -1634,7 +1733,7 @@
                  spacing: 0
  
                  Text {
-@@ -1374,9 +2613,9 @@
+@@ -1374,9 +2643,9 @@
  
                  Text {
                    textFormat: Text.PlainText
@@ -1646,7 +1745,7 @@
                    font.family: root.fontFamily
                    font.pixelSize: Style.font.heading
                    font.weight: Font.Normal
-@@ -1447,7 +2686,17 @@
+@@ -1447,7 +2716,17 @@
              spacing: Style.space(8)
              visible: displayModel.count === 0 && root.mode !== "input"
  
@@ -1664,7 +1763,7 @@
                text: "󰈉"
                color: root.selectedText
                opacity: 0.8
-@@ -1459,7 +2708,7 @@
+@@ -1459,7 +2738,7 @@
  
              Text {
                textFormat: Text.PlainText
@@ -1673,12 +1772,10 @@
                color: root.foreground
                opacity: 0.7
                font.family: root.fontFamily
-@@ -1469,6 +2718,82 @@
-             }
-           }
+@@ -1471,6 +2750,82 @@
          }
-+
-+        Item {
+ 
+         Item {
 +          visible: root.pkgDetailVisible
 +          width: parent.width
 +          height: visible ? root.pkgDetailHeight : 0
@@ -1753,6 +1850,8 @@
 +            }
 +          }
 +        }
- 
-         Item {
++
++        Item {
            width: parent.width
+           height: 0
+         }
